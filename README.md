@@ -1,4 +1,4 @@
 # Kevin Chao
 ## 112031000
-: 1f3f4_200d_2620_fe0f :
+: U+1F3F4 200D 2620 FE0F :
 Professor Stark - 01
