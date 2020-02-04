@@ -86,11 +86,16 @@ int strLen(char *str) //calculates the length of a function
 /**Helper Function - calculates string equality
 **/
 int strEq(char *str1, char *str2) {
+    //printf("str1 is %c%c\n", *str1, *(str1+1));
+    //printf("str2 is %c%c\n", *str2, *(str2+1));
     if(strLen(str1) != strLen(str2)){
+        //printf("The lengths were not the same\n\n");
         return 1; //return false if lengths are not the same
     }
-    for(int i=0; i<strLen(str1); i++){
+    int length = strLen(str1);
+    for(int i=0; i<length; i++){
         if(*str1 != *str2){
+            //printf("there was a mismatch: %d %d\n\n", *str1, *str2);
             return 1; //return false if a character in the string does not match
         }
         str1++;
@@ -102,15 +107,26 @@ int strEq(char *str1, char *str2) {
 **/
 int strToInt(char *str) {
     int total = 0;
-    for(int i = 0; i <= strLen(str); i++) {
+    //printf("strLen returned %d\n", strLen(str));
+    /*while('0' < *str && *str < '9'){
+        total *= 10;
+        total += *str - '0';
+        str++;
+    }*/
+    int length = strLen(str);
+    for(int i = 0; i < length; i++) {
         if('0' > *str || *str > '9') {
+            //printf("The str is %d\n", *str);
             return -1; //-1 is our error code for invalid input
         }
-        total += *str - 48;
-        total *= 10;
+        /**total *= 10;
+        total += *str - '0';
+        str++;**/
+        total = total * 10 + (*str - '0');
         str++;
+        //printf("i = %d: %d\n", i, total);
     }
-    total += *str - 48;
+    //printf("Total: %d", total);
     return total;
 }
 
@@ -138,29 +154,48 @@ int validargs(int argc, char **argv)
     if(argc <= 1)
         return EXIT_FAILURE; //EXIT_FAILURE if no flags are provided
     char *firstArg = *(argv + 1);
+    //printf("%d and %d",*firstArg, *(firstArg+1));
     //checking the first character
     if(strEq(firstArg, "-h") == 0) {
+        global_options = 1 | global_options; //if -h flag, set LSB to 1
         return EXIT_SUCCESS; //EXIT_SUCCESS if the first argument is -h
     } //if -h is not the first character, it should not exist
-    char *secondArg = *(argv + 2);
+    if(argc > 4)
+        return EXIT_FAILURE; //if no -h flag, maximum 4 arguments
     if(strEq(firstArg, "-c") == 0) {
-        if(strEq(secondArg, "-d") == 0)
-            return EXIT_FAILURE; //EXIT_FAILURE if -c -d flags
+        if(argc == 2)
+            return EXIT_SUCCESS; //EXIT_SUCCESS if only -c flag exists
+        char *secondArg = *(argv + 2); //otherwise test the second argument
+        if(strEq(secondArg, "-d") == 0 || strEq(secondArg, "-h") == 0)
+            return EXIT_FAILURE; //EXIT_FAILURE if -c -d or -c -h flags);
         else if(strEq(secondArg, "-b") == 0) { //checking that the second flag is -b
-            char *thirdArg = *(argv + 3);
-            if(*thirdArg == '\0') {
-                return EXIT_FAILURE; //EXIT_FAILURE if BLOCKSIZE does not exist following -b
+            if(argc != 4) {
+                //printf("The number of args is: %d\n", argc);
+                return EXIT_FAILURE; //EXIT FAILURE if not in format sequitur -c -b BLOCKSIZE
             }
-            else if(strToInt(thirdArg) == -1) {
+            char *thirdArg = *(argv + 3);
+            if(strToInt(thirdArg) == -1){
+                printf("BLOCKSIZE was not valid\n");
                 return EXIT_FAILURE; //EXIT_FAILURE if BLOCKSIZE is not valid
             }
-            //DO GLOBAL OPTIONS THING HERE
+            else if(1 > strToInt(thirdArg) || strToInt(thirdArg) > 1024) {
+                printf("the failed number was %d\n", strToInt(thirdArg));
+                return EXIT_FAILURE; //EXIT_FAILURE if BLOCKSIZe is not valid
+            }
+            printf("the successful number was %d\n", strToInt(thirdArg));
+            int extendedBlockSize = strToInt(thirdArg)<<16;
+            global_options = extendedBlockSize | global_options;//BLOCKSIZE in global_options if -b flag
         }
+        global_options = 2 | global_options; //if -c flag, set second LSB to 1
     }
     else if(strEq(firstArg, "-d") == 0) {
-        if(*secondArg != '\0') {
+        if(argc > 2) {
             return EXIT_FAILURE; //EXIT_FAILURE if a second flag after -d exists
         }
+        global_options = 4 | global_options; //if -d flag, set third LSB to 1
     }
-    return -1;
+    else if(strEq(firstArg, "-b") == 0) {
+        return EXIT_FAILURE; //EXIT_FAILURE if the first flag is -b
+    }
+    return 0;
 }

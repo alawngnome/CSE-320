@@ -18,14 +18,22 @@
 
 int main(int argc, char **argv)
 {
-    int ret;
-    if(validargs(argc, argv))
+    //printf("strEq returned for -c and -d: %d", strEq("-c", "-d"));
+    printf("validargs returned: %d\n", validargs(argc, argv));
+    //int ret;
+    if(validargs(argc, argv) == -1)
         USAGE(*argv, EXIT_FAILURE);
     debug("Options: 0x%x", global_options);
-    if(global_options & 1)
+    if((global_options & 1) == 1)
         USAGE(*argv, EXIT_SUCCESS);
-
+    /**If validargs returns 0, then your program must read data from stdin,
+    either compressing it or decompressing it as specified by the values of
+    global_options and block_size, and writing the result to stdout.
+    **/ //DO THIS
+    //Upon completion...
     return EXIT_SUCCESS;
+    //Upon failure...
+    return EXIT_FAILURE;
 }
 
 /*
