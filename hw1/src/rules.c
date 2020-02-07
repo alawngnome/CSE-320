@@ -50,7 +50,7 @@
  * Initializes the rules by setting main_rule to NULL and clearing the rule_map.
  */
 void init_rules(void) {
-    // To be implemented.
+    main_rule = NULL;
 }
 
 /**
@@ -69,6 +69,15 @@ void init_rules(void) {
  * the responsiblity of the client of this module.
  */
 SYMBOL *new_rule(int v) {
+    SYMBOL ruleReturn;
+    if(v < next_nonterminal_value){
+        return NULL;
+    }
+    ruleReturn.value = v;
+    ruleReturn.rule = &ruleReturn;
+    ruleReturn.next = &ruleReturn;
+    ruleReturn.prev = &ruleReturn;
+
     // To be implemented.
     return NULL;
 }

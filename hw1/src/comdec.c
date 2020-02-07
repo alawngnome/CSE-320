@@ -119,9 +119,6 @@ int strToInt(char *str) {
             //printf("The str is %d\n", *str);
             return -1; //-1 is our error code for invalid input
         }
-        /**total *= 10;
-        total += *str - '0';
-        str++;**/
         total = total * 10 + (*str - '0');
         str++;
         //printf("i = %d: %d\n", i, total);

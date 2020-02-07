@@ -5,6 +5,7 @@
 #include "const.h"
 #include "sequitur.h"
 #include "debug.h"
+#include "helper.h"
 
 /*
  * This file is a stub for code that I have provided for you, but you need

@@ -1,5 +1,6 @@
 #include "const.h"
 #include "sequitur.h"
+#include "helper.h"
 
 /*
  * Symbol management.
@@ -19,7 +20,8 @@ int next_nonterminal_value = FIRST_NONTERMINAL;
  * to FIRST_NONTERMINAL;
  */
 void init_symbols(void) {
-    // To be implemented.
+    num_symbols = 0;
+    next_nonterminal_value = FIRST_NONTERMINAL;
 }
 
 /**
@@ -46,8 +48,34 @@ void init_symbols(void) {
  * allocation.
  */
 SYMBOL *new_symbol(int value, SYMBOL *rule) {
-    // To be implemented.
-    return NULL;
+    SYMBOL ruleReturn;
+    SYMBOL *pointerReturn;
+    if(recycled_symbols != NULL){
+        pointerReturn = recycled_symbols;
+        ruleReturn = *recycled_symbols; //????? how to use recycled symbol
+        recycled_symbols = recycled_symbols->next;
+    }
+    ruleReturn.value = value;
+    if(value < FIRST_NONTERMINAL)
+        ruleReturn.rule = NULL;
+    else{
+        rule->refcnt += 1;
+        ruleReturn.rule = rule;
+    }
+    ruleReturn.refcnt = 0;
+    ruleReturn.next = NULL;
+    ruleReturn.prev = NULL;
+    ruleReturn.nextr = NULL;
+    ruleReturn.prevr = NULL;
+
+    if(recycled_symbols == NULL){
+        pointerReturn = symbol_storage + num_symbols;
+        *(symbol_storage + num_symbols) = ruleReturn;
+        //symbol_storage = symbol_storage->next;
+        num_symbols++;
+    }
+
+    return pointerReturn;
 }
 
 /**
@@ -62,5 +90,7 @@ SYMBOL *new_symbol(int value, SYMBOL *rule) {
  * next field of the SYMBOL structure to chain together the entries.
  */
 void recycle_symbol(SYMBOL *s) {
+    recycled_symbols->next = recycled_symbols;
+    recycled_symbols = s;
     // To be implemented.
 }
