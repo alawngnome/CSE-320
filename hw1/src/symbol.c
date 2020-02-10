@@ -90,7 +90,7 @@ SYMBOL *new_symbol(int value, SYMBOL *rule) {
  * next field of the SYMBOL structure to chain together the entries.
  */
 void recycle_symbol(SYMBOL *s) {
-    recycled_symbols->next = recycled_symbols;
     recycled_symbols = s;
+    recycled_symbols->next = recycled_symbols;
     // To be implemented.
 }

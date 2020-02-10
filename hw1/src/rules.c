@@ -79,7 +79,7 @@ SYMBOL *new_rule(int v) {
     ruleReturn.prev = &ruleReturn;
 
     // To be implemented.
-    return NULL;
+    return ruleReturn.rule;
 }
 
 /**
@@ -94,6 +94,16 @@ SYMBOL *new_rule(int v) {
  * the list; i.e. between main_rule->prev and main_rule.
  */
 void add_rule(SYMBOL *rule) {
+    if(main_rule == NULL) {
+        main_rule = rule;
+        main_rule->nextr = main_rule;
+        main_rule->prevr = main_rule;
+    }else {
+        main_rule->prevr->nextr = rule;
+        main_rule->prevr->nextr->prevr = main_rule->prevr; //rule.prevr = main_rule.prevr
+        main_rule->prevr->nextr->nextr = main_rule; //rule.nextr = main_rule
+        main_rule->prevr = rule;
+    }
     // To be implemented.
 }
 
@@ -109,6 +119,11 @@ void add_rule(SYMBOL *rule) {
  * the disposition of those symbols is the responsibility of the caller.
  */
 void delete_rule(SYMBOL *rule) {
+    if((rule->refcnt) == 0){
+        recycle_symbol(rule);
+    }
+    rule->prevr->nextr = rule->nextr;
+    rule->nextr->prevr = rule->prevr;
     // To be implemented.
 }
 
@@ -119,8 +134,8 @@ void delete_rule(SYMBOL *rule) {
  * @return  The same rule that was passed as argument.
  */
 SYMBOL *ref_rule(SYMBOL *rule) {
-    // To be implemented.
-    return NULL;
+    rule->refcnt++;
+    return rule;
 }
 
 /**
@@ -132,5 +147,11 @@ SYMBOL *ref_rule(SYMBOL *rule) {
  *
  */
 void unref_rule(SYMBOL *rule) {
+    if(rule->refcnt == 0){
+        fprintf(stderr, "refcnt became negative\n");
+
+        //ABORT
+    }
+    rule->refcnt--;
     // To be implemented.
 }
