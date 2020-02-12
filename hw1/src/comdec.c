@@ -58,6 +58,19 @@ int compress(FILE *in, FILE *out, int bsize) {
     return EOF;
 }
 
+/**Helper Function: returns amount of special marker bits the UTF-8 character head will take
+**/
+int markerBytes(char byte){
+    if(byte>>7 == 0) //1 byte
+        return 1;
+    if(byte>>5 == 6) //2 bytes
+        return 3;
+    if(byte>>4 == 14) //3 bytes
+        return 4;
+    if(byte>>3 == 30) //4 bytes
+        return 5;
+    return -1; //Error code
+}
 /**
  * Main decompression function.
  * Reads a compressed data transmission from an input stream, expands it,
@@ -69,9 +82,62 @@ int compress(FILE *in, FILE *out, int bsize) {
  * @return  The number of bytes written, in case of success, otherwise EOF.
  */
 int decompress(FILE *in, FILE *out) {
-    // To be implemented.
-    return EOF;
+    if(fgetc(in) != 0x81) //Start of transmission
+        return EOF; //Failure if not start of transmission
+    char utfByte = fgetc(in);
+    if(utfByte != 0x83){
+        return EOF; //failure if block sign does not follow transmission sign
+    }
+
+    while(utfByte == 0x83){
+        char headerByte = fgetc(in);//headerByte represents the first byte of the head of a rule
+        int codePoint = 0;
+        if(headerByte>>7 == 0) //1 byte
+            return EOF; //headerByte must be bigger than 1 byte at least
+        else if(headerByte>>5 == 6) {//2 bytes
+            //Careful, headerByte could still be invalid despite being 2 bytes?
+            codePoint = headerByte; //the final codepoint in UTF-8 we want to represent
+            char secondHeaderByte = fgetc(in);
+            codePoint <<= 6; //Right shifting 4 to make room Not sure
+            secondHeaderByte &=63;
+            codePoint &= secondHeaderByte;
+        }
+        else if(headerByte>>4 == 14){ //3 bytes
+            codePoint = headerByte;
+            char secondHeaderByte = fgetc(in);
+            codePoint >>= 6;
+            secondHeaderByte &= 63;
+            codePoint &= secondHeaderByte;
+
+            secondHeaderByte = fgetc(in);
+            codePoint >>= 6;
+            secondHeaderByte &= 63;
+            codePoint &= secondHeaderByte;
+        }
+        else if(headerByte>>3 == 30){ //4 bytes
+            codePoint = headerByte;
+            char secondHeaderByte = fgetc(in);
+            codePoint >>= 6;
+            secondHeaderByte &= 63;
+            codePoint &= secondHeaderByte;
+
+            secondHeaderByte = fgetc(in);
+            codePoint >>= 6;
+            secondHeaderByte &= 63;
+            codePoint &= secondHeaderByte;
+
+            secondHeaderByte = fgetc(in);
+            codePoint >>= 6;
+            secondHeaderByte &= 63;
+            codePoint &= secondHeaderByte;
+        }
+    //if 0x85, keep going
+    //otherwise, expect 0x84
+    //after 0x84, expect another 0x83
+    //after final 0x84, expect 0x82
+    //anything else, return EOF
 }
+
 /**Helper Function - calculates length of a string
 **/
 int strLen(char *str) //calculates the length of a function
@@ -126,8 +192,6 @@ int strToInt(char *str) {
     //printf("Total: %d", total);
     return total;
 }
-
-
 /**
  * @brief Validates command line arguments passed to the program.
  * @details This function will validate all the arguments passed to the

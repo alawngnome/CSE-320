@@ -47,7 +47,7 @@ void init_symbols(void) {
  * the main symbol_storage array and the num_symbols variable is incremented to record the
  * allocation.
  */
-SYMBOL *new_symbol(int value, SYMBOL *rule) {
+SYMBOL *new_symbol(int value, SYMBOL *rule) { //*rule here in the parameter refers to the rule of the parent head
     SYMBOL ruleReturn;
     SYMBOL *pointerReturn;
     if(recycled_symbols != NULL){
@@ -90,7 +90,10 @@ SYMBOL *new_symbol(int value, SYMBOL *rule) {
  * next field of the SYMBOL structure to chain together the entries.
  */
 void recycle_symbol(SYMBOL *s) {
-    recycled_symbols = s;
+    if(recycled_symbols == NULL){
+        recycled_symbols = s;
+        return;
+    }
     recycled_symbols->next = recycled_symbols;
-    // To be implemented.
+    recycled_symbols = s;
 }
