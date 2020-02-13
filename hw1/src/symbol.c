@@ -59,8 +59,10 @@ SYMBOL *new_symbol(int value, SYMBOL *rule) { //*rule here in the parameter refe
     if(value < FIRST_NONTERMINAL)
         ruleReturn.rule = NULL;
     else{
-        rule->refcnt += 1;
-        ruleReturn.rule = rule;
+        if(rule != NULL) {
+            rule->refcnt += 1;
+            ruleReturn.rule = rule;
+        }
     }
     ruleReturn.refcnt = 0;
     ruleReturn.next = NULL;

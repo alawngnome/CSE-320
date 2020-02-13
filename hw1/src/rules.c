@@ -69,17 +69,18 @@ void init_rules(void) {
  * the responsiblity of the client of this module.
  */
 SYMBOL *new_rule(int v) {
-    SYMBOL ruleReturn;
+    SYMBOL *ruleReturn = new_symbol(v, NULL);
     if(v < next_nonterminal_value){
         return NULL;
     }
-    ruleReturn.value = v;
-    ruleReturn.rule = &ruleReturn;
-    ruleReturn.next = &ruleReturn;
-    ruleReturn.prev = &ruleReturn;
+    ruleReturn->rule = ruleReturn;
+    ruleReturn->next = ruleReturn;
+    ruleReturn->prev = ruleReturn;
+    ruleReturn->prevr = NULL;
+    ruleReturn->nextr = NULL;
 
     // To be implemented.
-    return ruleReturn.rule;
+    return ruleReturn->rule;
 }
 
 /**
@@ -100,8 +101,8 @@ void add_rule(SYMBOL *rule) {
         main_rule->prevr = main_rule;
     }else {
         main_rule->prevr->nextr = rule;
-        main_rule->prevr->nextr->prevr = main_rule->prevr; //rule.prevr = main_rule.prevr
-        main_rule->prevr->nextr->nextr = main_rule; //rule.nextr = main_rule
+        rule->prevr = main_rule->prevr; //rule.prevr = main_rule.prevr
+        rule->nextr = main_rule; //rule.nextr = main_rule
         main_rule->prevr = rule;
     }
     // To be implemented.
@@ -149,7 +150,7 @@ SYMBOL *ref_rule(SYMBOL *rule) {
 void unref_rule(SYMBOL *rule) {
     if(rule->refcnt == 0){
         fprintf(stderr, "refcnt became negative\n");
-
+        void abort(void);
         //ABORT
     }
     rule->refcnt--;

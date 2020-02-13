@@ -84,58 +84,121 @@ int markerBytes(char byte){
 int decompress(FILE *in, FILE *out) {
     if(fgetc(in) != 0x81) //Start of transmission
         return EOF; //Failure if not start of transmission
-    char utfByte = fgetc(in);
-    if(utfByte != 0x83){
-        return EOF; //failure if block sign does not follow transmission sign
-    }
+    char utfByte = fgetc(in); //first initialized to be 0x83
 
-    while(utfByte == 0x83){
+    while(utfByte != 0x82){ //should iterate every block
+        SYMBOL *rule;
+        if(utfByte != 0x83){//Head of rule outside every inner loop
+            if(utfByte == 0x85) { //if breaking outside inner loop b/c 0x85, do not return error with lack of
+                break;
+            }
+            return EOF; //failure if block sign does not follow transmission sign
+        }
         char headerByte = fgetc(in);//headerByte represents the first byte of the head of a rule
-        int codePoint = 0;
+        int codePoint = 0; //codePoint is the UTF-8 character codepoint in binary
         if(headerByte>>7 == 0) //1 byte
             return EOF; //headerByte must be bigger than 1 byte at least
         else if(headerByte>>5 == 6) {//2 bytes
-            //Careful, headerByte could still be invalid despite being 2 bytes?
             codePoint = headerByte; //the final codepoint in UTF-8 we want to represent
             char secondHeaderByte = fgetc(in);
             codePoint <<= 6; //Right shifting 4 to make room Not sure
-            secondHeaderByte &=63;
-            codePoint &= secondHeaderByte;
+            secondHeaderByte &= 63;
+            codePoint |= secondHeaderByte;
+            rule = new_rule(codePoint);
         }
         else if(headerByte>>4 == 14){ //3 bytes
             codePoint = headerByte;
             char secondHeaderByte = fgetc(in);
             codePoint >>= 6;
             secondHeaderByte &= 63;
-            codePoint &= secondHeaderByte;
+            codePoint |= secondHeaderByte;
 
             secondHeaderByte = fgetc(in);
             codePoint >>= 6;
             secondHeaderByte &= 63;
-            codePoint &= secondHeaderByte;
+            codePoint |= secondHeaderByte;
+            rule = new_rule(codePoint);
         }
         else if(headerByte>>3 == 30){ //4 bytes
             codePoint = headerByte;
             char secondHeaderByte = fgetc(in);
             codePoint >>= 6;
             secondHeaderByte &= 63;
-            codePoint &= secondHeaderByte;
+            codePoint |= secondHeaderByte;
 
             secondHeaderByte = fgetc(in);
             codePoint >>= 6;
             secondHeaderByte &= 63;
-            codePoint &= secondHeaderByte;
+            codePoint |= secondHeaderByte;
 
             secondHeaderByte = fgetc(in);
             codePoint >>= 6;
             secondHeaderByte &= 63;
-            codePoint &= secondHeaderByte;
+            codePoint |= secondHeaderByte;
+            rule = new_rule(codePoint);
+        }
+        else {
+            return EOF; //if not valid UTF-8 header, return EOF;
+        }
+        utfByte = fgetc(in);
+        while(utfByte != 0x84 || utfByte != 0x85){
+            if(utfByte>>7 == 0){ //1 byte
+                codePoint = utfByte & 127;
+                new_symbol(codePoint, rule);
+            }
+            if(utfByte>>5 == 6){ //2 bytes
+                codePoint = headerByte; //the final codepoint in UTF-8 we want to represent
+                char secondHeaderByte = fgetc(in);
+                codePoint <<= 6; //Right shifting 4 to make room Not sure
+                secondHeaderByte &= 63;
+                codePoint |= secondHeaderByte;
+                new_symbol(codePoint, rule);
+            }
+            if(utfByte>>4 == 14){ //3 bytes
+                codePoint = headerByte;
+                char secondHeaderByte = fgetc(in);
+                codePoint >>= 6;
+                secondHeaderByte &= 63;
+                codePoint |= secondHeaderByte;
+
+                secondHeaderByte = fgetc(in);
+                codePoint >>= 6;
+                secondHeaderByte &= 63;
+                codePoint |= secondHeaderByte;
+                new_symbol(codePoint, rule);
+            }
+            if(utfByte>>3 == 30){ //4 bytes
+                codePoint = headerByte;
+                char secondHeaderByte = fgetc(in);
+                codePoint >>= 6;
+                secondHeaderByte &= 63;
+                codePoint |= secondHeaderByte;
+
+                secondHeaderByte = fgetc(in);
+                codePoint >>= 6;
+                secondHeaderByte &= 63;
+                codePoint |= secondHeaderByte;
+
+                secondHeaderByte = fgetc(in);
+                codePoint >>= 6;
+                secondHeaderByte &= 63;
+                codePoint |= secondHeaderByte;
+                new_symbol(codePoint, rule);
+            }
+            else {
+                return EOF; //EOF if not in proper UTF-8
+            }
+            utfByte = fgetc(in);
+        }
+        if(utfByte == 0x84) { //must check 0x85 in beginning of the loop
+            utfByte = fgetc(in); //move from 0x84 to 0x83 for next outer loop iteration
         }
     //if 0x85, keep going
     //otherwise, expect 0x84
     //after 0x84, expect another 0x83
     //after final 0x84, expect 0x82
     //anything else, return EOF
+    }
 }
 
 /**Helper Function - calculates length of a string
@@ -260,3 +323,4 @@ int validargs(int argc, char **argv)
     }
     return 0;
 }
+
