@@ -60,8 +60,22 @@ int compress(FILE *in, FILE *out, int bsize) {
 
 /**Helper Function: Expands a rule set in a block into the uncompressed string
 **/
-char *ruleExpand(){ //no arguments neccessary b/c main_rule is global
-
+int ruleExpand(SYMBOL *rulePointer, FILE *out){
+    if(rulePointer == NULL){
+        return EOF;
+    }
+    int byteCount = 0;
+    do{
+        if(rulePointer->rule == NULL){ //terminal symbol
+            fputc(rulePointer->value, out);
+            byteCount++;
+        }else { //non-terminal symbol
+            byteCount += ruleExpand(*(rule_map+rulePointer->value), out);
+            byteCount++;
+        }
+        rulePointer++;
+    }while(rulePointer->rule != rulePointer);
+    return byteCount;
 }
 
 /**
@@ -81,6 +95,7 @@ int decompress(FILE *in, FILE *out) {
     if(fgetc(in) != 0x81) //Start of transmission
         return EOF; //Failure if not start of transmission
     char utfByte = fgetc(in); //first initialized to be 0x83
+    int byteTotal = 0;
 
     //SYMBOL *main_rule = NULL; //flush in the beginning of every new block, but not for rule delimiters
     while(utfByte != 0x82){ //should iterate every block
@@ -140,10 +155,12 @@ int decompress(FILE *in, FILE *out) {
         if(utfByte == 0x83){ //if new block
             main_rule = new_rule(codePoint); //main_rule was reset
             child_rule = NULL; //cleaning up memory SHOULD I RECYCLE THIS????????????????????????????????????????????????
+            *(rule_map + main_rule->value) = main_rule; //adding main_rule to rule_map
         }
         else if(utfByte == 0x85){ //if new rule in block
             //SYMBOL *rule = new_rule(codePoint);
             add_rule(child_rule);
+            *(rule_map + child_rule->value) = child_rule; //adding child rule to rule_map
         }
         char utfByteCopy = utfByte; //copy for whether main rule or child rule
 
@@ -205,6 +222,8 @@ int decompress(FILE *in, FILE *out) {
         else if(utfByte == 0x85){
             //add_rule(new_rule(codePoint)); //if rule delimiter, add child rule
         }
+        //fputc(*ruleExpand(main_rule), out); //sends uncompressed string to out
+        byteTotal += ruleExpand(main_rule, out);
 
     //if 0x85, keep going
     //otherwise, expect 0x84
@@ -212,9 +231,7 @@ int decompress(FILE *in, FILE *out) {
     //after final 0x84, expect 0x82
     //anything else, return EOF
     } //end of outer loop
-
-    //Expansion of symbols here
-
+    return byteTotal;
 }
 
 /**Helper Function - calculates length of a string
@@ -339,4 +356,3 @@ int validargs(int argc, char **argv)
     }
     return 0;
 }
-

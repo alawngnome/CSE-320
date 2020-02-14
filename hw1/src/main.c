@@ -24,12 +24,20 @@ int main(int argc, char **argv)
     if(validargs(argc, argv) == -1)
         USAGE(*argv, EXIT_FAILURE);
     debug("Options: 0x%x", global_options);
-    if((global_options & 1) == 1)
+    if((global_options & 1) == 1) //help flag called here
         USAGE(*argv, EXIT_SUCCESS);
     /**If validargs returns 0, then your program must read data from stdin,
     either compressing it or decompressing it as specified by the values of
     global_options and block_size, and writing the result to stdout.
     **/ //DO THIS
+    else if(validargs(argc, argv) == 0){
+        if((global_options & 4) == 1){
+            decompress(stdin, stdout);
+        }
+        else if((global_options & 2) == 1){} //extracting second LSB to test for compression
+            //compress(stdin, stdout);
+    }
+
     //Upon completion...
     return EXIT_SUCCESS;
     //Upon failure...
