@@ -105,7 +105,6 @@ void add_rule(SYMBOL *rule) {
         rule->nextr = main_rule; //rule.nextr = main_rule
         main_rule->prevr = rule;
     }
-    // To be implemented.
 }
 
 /**
