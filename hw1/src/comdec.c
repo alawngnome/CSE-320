@@ -58,17 +58,53 @@ int compress(FILE *in, FILE *out, int bsize) {
     return EOF;
 }
 
+
+//Testing function that prints out the rule map
+void printList(SYMBOL *rulePointer){
+    SYMBOL *main_ruleCopy = rulePointer;
+
+    debug("*****rulePointer->rule->value is %x\n", rulePointer->rule->value);
+    //debug("rulePointer->nextr->value is %x\n", rulePointer->nextr->value);
+    while(rulePointer->nextr->rule != main_ruleCopy) {
+
+        rulePointer = rulePointer-> next;
+        //debug("rulePointer's second value is %x\n", rulePointer->value);
+        while(rulePointer->rule != rulePointer) {
+
+            debug("The value of this symbol is %x\n", rulePointer->value);
+            rulePointer = rulePointer->next;
+        }
+        rulePointer = rulePointer->nextr;
+        debug("*****rulePointer->rule->value is %x\n", rulePointer->rule->value);
+    }
+}
+
+
 /**Helper Function: Expands a rule set in a block into the uncompressed string and returns total bytes processed
 **/
-int ruleExpand(SYMBOL *rulePointer, FILE *out){
-    //printf("ruleExpand called\n");
+int ruleExpand(SYMBOL *rulePointer, FILE *out){;
     if(rulePointer == NULL){
         return EOF;
     }
 
     int byteCount = 0;
-    SYMBOL *rule_head = rulePointer;
 
+    rulePointer = rulePointer->next; //skip head character
+    //debug("rulePointer->value is %c\n", rulePointer->value);
+    while(rulePointer->rule != rulePointer){
+        if(IS_TERMINAL(rulePointer)){ //terminal symbol
+            fputc(rulePointer->value, out);
+            byteCount++;
+        }else { //non-terminal symbol
+            byteCount += ruleExpand(*(rule_map+(rulePointer->value)), out);
+            //printf("non-terminal symbol in ruleExpand\n");
+        }
+        rulePointer = rulePointer->next;
+    }
+
+
+    /**
+    SYMBOL *rule_head = rulePointer;
     do{
         rulePointer = rulePointer->next; //increment through the body of a rule
         byteCount++; //counter for decompress return value
@@ -78,9 +114,9 @@ int ruleExpand(SYMBOL *rulePointer, FILE *out){
             byteCount += ruleExpand(*(rule_map+(rulePointer->value)), out);
             //printf("non-terminal symbol in ruleExpand\n");
         }
-        //printf("rulePointer's value is %x\n", rulePointer->value);
     }while(rulePointer != rule_head);
-    //printf("byteCount returns %d\n", byteCount);
+    **/
+
     return byteCount;
 }
 
@@ -162,15 +198,20 @@ SYMBOL *decompressBlock(FILE *in) {
     utfByte = decompressChar(in);
     while(utfByte != 0x84) { //definite stop when we reach end-of-block
 
-        printf("utfByte is %x\n", utfByte);
+        //debug("utfByte is %x\n", utfByte);
         if(utfByte == EOF)
             return NULL;
         else if(utfByte == 0x85) { //skip current character(0x85) and skip adding symbol
             //create head of child rule
             utfByte = decompressChar(in); //fuck im stupid
+
+        if(utfByte < 256 || utfByte == EOF) {
+            return NULL;
+        } else {
             brand_new_rule = new_rule(utfByte);
             add_rule(brand_new_rule);
             *(rule_map + brand_new_rule->value) = brand_new_rule;
+        }
 
             ruleDelimiterSkip = 1;
         }
@@ -213,17 +254,17 @@ int decompress(FILE *in, FILE *out) {
 
     int byteCount = 0;
     while(utfByte != 0x82) {
-        printf("utfByte is currently %x\n", utfByte);
         SYMBOL *ruleBlock = decompressBlock(in);
 
         if(ruleBlock == NULL){
             return EOF;
         }
 
-        byteCount += ruleExpand(ruleBlock, out);
+        byteCount += ruleExpand(main_rule, out);
+        //printList(main_rule);
+
         utfByte = fgetc(in);
     }
-
     return byteCount;
 }
 
