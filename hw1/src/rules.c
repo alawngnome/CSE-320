@@ -104,8 +104,8 @@ void add_rule(SYMBOL *rule) {
         main_rule->prevr = main_rule;
     }else {
         main_rule->prevr->nextr = rule;
-        rule->prevr = main_rule->prevr; //rule.prevr = main_rule.prevr
         rule->nextr = main_rule; //rule.nextr = main_rule
+        rule->prevr = main_rule->prevr; //rule.prevr = main_rule.prevr
         main_rule->prevr = rule;
     }
 }

@@ -91,6 +91,12 @@ int ruleExpand(SYMBOL *rulePointer, FILE *out){
 **/
 int decompressChar(FILE *in) {
     int utfByte = fgetc(in);
+
+    //if 0x85, 0x84... return unmodified char
+    if(utfByte == 0x85 || utfByte == 0x84){
+        return utfByte;
+    }
+
     int codePoint;
     if(utfByte>>7 == 0){ //1 byte
         codePoint = utfByte & 127;
@@ -133,7 +139,7 @@ int decompressChar(FILE *in) {
 /** Helper Function that parses a single block
     READS STARTING RIGHT AFTER THE POINTER
     CALL AFTER 0X83 IS READ
-    ENDS AT 0X84 CHARACTER
+    ENDS HAVING READ 0X84 CHARACTER
 **/
 SYMBOL *decompressBlock(FILE *in) {
     init_symbols();
@@ -143,36 +149,43 @@ SYMBOL *decompressBlock(FILE *in) {
 
     int utfByte = decompressChar(in); //utfByte will signify whether block is reading main_rule or child_rule
 
-    if(utfByte <= 256 || utfByte == EOF){
+    if(utfByte < 256 || utfByte == EOF){
         return NULL;
     } else {
         brand_new_rule = new_rule(utfByte);
         add_rule(brand_new_rule);
+        *(rule_map + brand_new_rule->value) = brand_new_rule;
     }
 
-    int codePoint = 0;
     int ruleDelimiterSkip = 0; //one iteration skip over creating a new symbol
 
-    while(codePoint != 0x84) { //definite stop when we reach end-of-block
+    utfByte = decompressChar(in);
+    while(utfByte != 0x84) { //definite stop when we reach end-of-block
 
-        if(codePoint == EOF)
+        printf("utfByte is %x\n", utfByte);
+        if(utfByte == EOF)
             return NULL;
-        else if(codePoint == 0x85) { //skip current character(0x85) and skip adding symbol
+        else if(utfByte == 0x85) { //skip current character(0x85) and skip adding symbol
+            //create head of child rule
+            utfByte = decompressChar(in); //fuck im stupid
             brand_new_rule = new_rule(utfByte);
             add_rule(brand_new_rule);
+            *(rule_map + brand_new_rule->value) = brand_new_rule;
+
             ruleDelimiterSkip = 1;
         }
-        if(ruleDelimiterSkip == 1) {
+        if(ruleDelimiterSkip == 0) {
 
-            SYMBOL *symbolAdd = new_symbol(codePoint, brand_new_rule);
+            SYMBOL *symbolAdd = new_symbol(utfByte, brand_new_rule);
             brand_new_rule->prev->next = symbolAdd;
             symbolAdd->next = brand_new_rule;
             symbolAdd->prev = brand_new_rule->prev;
             brand_new_rule->prev = symbolAdd;
 
+        } else {
             ruleDelimiterSkip = 0;
         }
-        codePoint = decompressChar(in);
+        utfByte = decompressChar(in);
     } //end of while loop
     return brand_new_rule;
 }
@@ -202,12 +215,18 @@ int decompress(FILE *in, FILE *out) {
     while(utfByte != 0x82) {
         printf("utfByte is currently %x\n", utfByte);
         SYMBOL *ruleBlock = decompressBlock(in);
+
+        if(ruleBlock == NULL){
+            return EOF;
+        }
+
         byteCount += ruleExpand(ruleBlock, out);
         utfByte = fgetc(in);
     }
 
     return byteCount;
 }
+
 
 
 /**Helper Function - calculates length of a string
