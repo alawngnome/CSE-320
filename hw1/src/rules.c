@@ -51,6 +51,9 @@
  */
 void init_rules(void) {
     main_rule = NULL;
+    for(int i = 0; i < MAX_SYMBOLS; i++){
+        *(rule_map+i) = NULL;
+    }
 }
 
 /**

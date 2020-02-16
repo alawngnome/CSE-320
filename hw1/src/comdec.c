@@ -58,23 +58,29 @@ int compress(FILE *in, FILE *out, int bsize) {
     return EOF;
 }
 
-/**Helper Function: Expands a rule set in a block into the uncompressed string
+/**Helper Function: Expands a rule set in a block into the uncompressed string and returns total bytes processed
 **/
 int ruleExpand(SYMBOL *rulePointer, FILE *out){
+    //printf("ruleExpand called\n");
     if(rulePointer == NULL){
         return EOF;
     }
+
     int byteCount = 0;
+    SYMBOL *rule_head = rulePointer;
+
     do{
-        if(rulePointer->rule == NULL){ //terminal symbol
+        rulePointer = rulePointer->next; //increment through the body of a rule
+        byteCount++; //counter for decompress return value
+        if(IS_TERMINAL(rulePointer)){ //terminal symbol
             fputc(rulePointer->value, out);
-            byteCount++;
         }else { //non-terminal symbol
-            byteCount += ruleExpand(*(rule_map+rulePointer->value), out);
-            byteCount++;
+            byteCount += ruleExpand(*(rule_map+(rulePointer->value)), out);
+            //printf("non-terminal symbol in ruleExpand\n");
         }
-        rulePointer++;
-    }while(rulePointer->rule != rulePointer);
+        //printf("rulePointer's value is %x\n", rulePointer->value);
+    }while(rulePointer != rule_head);
+    //printf("byteCount returns %d\n", byteCount);
     return byteCount;
 }
 
@@ -89,148 +95,177 @@ int ruleExpand(SYMBOL *rulePointer, FILE *out){
  * @return  The number of bytes written, in case of success, otherwise EOF.
  */
 int decompress(FILE *in, FILE *out) {
-    init_symbols(); //initialize the symbol module
-    init_rules(); //initialize the rule map
-
-    if(fgetc(in) != 0x81) //Start of transmission
+    //printf("decompress runs\n");
+    //printf("The first fgetc(in) is %x\n",fgetc(in));
+    if(fgetc(in) != 0x81){ //Start of transmission
+        printf("Failing at 0x81 if case\n");
         return EOF; //Failure if not start of transmission
-    char utfByte = fgetc(in); //first initialized to be 0x83
+    }
+    int utfByte = fgetc(in); //first initialized to be 0x83
+    //printf("utfByte before looping is %x\n", utfByte);
+    //printf("The one that follows is %x\n", fgetc(in));
     int byteTotal = 0;
 
     //SYMBOL *main_rule = NULL; //flush in the beginning of every new block, but not for rule delimiters
     while(utfByte != 0x82){ //should iterate every block
-        if(utfByte != 0x83){//Head of rule outside every inner loop
-            if(utfByte == 0x85) { //if breaking outside inner loop b/c 0x85, do not return error with lack of
-               break;
-            }
-            else
-                return EOF; //failure if block sign does not follow transmission sign
+        //printf("Start of block/rule: utfByte is %x\n", utfByte);
+        if(utfByte != 0x83){ //Head of rule outside every inner loop
+            return EOF; //failure if block sign does not follow transmission sign
         }
-        char headerByte = fgetc(in);//headerByte represents the first byte of the head of a rule
+
+        if (utfByte == 0x84) {
+            init_symbols(); //new block means new set of symbols
+            init_rules(); //and also making a new rule_map
+        }
+
+
+        int headerByte = fgetc(in);//headerByte represents the first byte of the head of a rule
+        //printf("headerByte is %x\n", headerByte);
         int codePoint = 0; //codePoint is the UTF-8 character codepoint in binary
-        if(headerByte>>7 == 0) //1 byte
+        if(headerByte>>7 == 0){ //1 byte
+            printf("headerByte was not bigger than 1 byte\n");
             return EOF; //headerByte must be bigger than 1 byte at least
+        }
         else if(headerByte>>5 == 6) {//2 bytes
-            codePoint = headerByte; //the final codepoint in UTF-8 we want to represent
-            char secondHeaderByte = fgetc(in);
-            codePoint <<= 6; //Right shifting 4 to make room Not sure
-            secondHeaderByte &= 63;
-            codePoint |= secondHeaderByte;
+            codePoint = headerByte&31; //the final codepoint in UTF-8 we want to represent
+            codePoint <<= 6; //Right shifting 6 to make room
+            int secondHeaderByte = fgetc(in);
+            codePoint |= secondHeaderByte&63;
         }
         else if(headerByte>>4 == 14){ //3 bytes
             codePoint = headerByte;
-            char secondHeaderByte = fgetc(in);
-            codePoint >>= 6;
+            int secondHeaderByte = fgetc(in);
+            codePoint <<= 6;
             secondHeaderByte &= 63;
             codePoint |= secondHeaderByte;
 
             secondHeaderByte = fgetc(in);
-            codePoint >>= 6;
+            codePoint <<= 6;
             secondHeaderByte &= 63;
             codePoint |= secondHeaderByte;
         }
         else if(headerByte>>3 == 30){ //4 bytes
             codePoint = headerByte;
-            char secondHeaderByte = fgetc(in);
-            codePoint >>= 6;
+            int secondHeaderByte = fgetc(in);
+            codePoint <<= 6;
             secondHeaderByte &= 63;
             codePoint |= secondHeaderByte;
 
             secondHeaderByte = fgetc(in);
-            codePoint >>= 6;
+            codePoint <<= 6;
             secondHeaderByte &= 63;
             codePoint |= secondHeaderByte;
 
             secondHeaderByte = fgetc(in);
-            codePoint >>= 6;
+            codePoint <<= 6;
             secondHeaderByte &= 63;
             codePoint |= secondHeaderByte;
         }
         else {
+            printf("Not valid UTF-8 header char\n");
             return EOF; //if not valid UTF-8 header, return EOF;
         } //end of header codePoint selection
 
         //selecting type of rule(main or child)
-        SYMBOL *child_rule = new_rule(codePoint);
-        if(utfByte == 0x83){ //if new block
-            main_rule = new_rule(codePoint); //main_rule was reset
-            child_rule = NULL; //cleaning up memory SHOULD I RECYCLE THIS????????????????????????????????????????????????
-            *(rule_map + main_rule->value) = main_rule; //adding main_rule to rule_map
+        //printf("utfByte at type of rule selection is %x\n", utfByte);
+        SYMBOL *brand_new_rule = new_rule(codePoint);
+        /*if(utfByte == 0x83){ //if new block
+            add_rule(brand_new_rule);
+            //main_rule = new_rule(codePoint); //main_rule was reset
+            //child_rule = NULL; //cleaning up memory SHOULD I RECYCLE THIS????????????????????????????????????????????????
+            // *(rule_map + main_rule->value) = main_rule; //adding main_rule to rule_map
         }
         else if(utfByte == 0x85){ //if new rule in block
             //SYMBOL *rule = new_rule(codePoint);
-            add_rule(child_rule);
-            *(rule_map + child_rule->value) = child_rule; //adding child rule to rule_map
-        }
-        char utfByteCopy = utfByte; //copy for whether main rule or child rule
+            add_rule(brand_new_rule);
+            *(rule_map + brand_new_rule->value) = brand_new_rule; //adding child rule to rule_map
+        }*/
+        add_rule(brand_new_rule);
+
+        int utfByteCopy = utfByte; //copy for whether main rule or child rule
 
         //decompressing body of rule
         utfByte = fgetc(in); //will be initialized as the char right after the header, and either 0x84 or 0x85 after inner loop finishes
-        while(utfByte != 0x84 || utfByte != 0x85){
-            if(utfByte>>7 == 0) //1 byte
+        while(utfByte != 0x84 && utfByte != 0x85){
+            //printf("utfByte at start of iteration of inner loop is %x\n", utfByte);
+
+            if(utfByte>>7 == 0){ //1 byte
                 codePoint = utfByte & 127;
+                //printf("The current 1 byte utf-8 char is %x\n", utfByte);
+            }
             else if(utfByte>>5 == 6){ //2 bytes
-                codePoint = headerByte; //the final codepoint in UTF-8 we want to represent
-                char secondHeaderByte = fgetc(in);
+                codePoint = utfByte&31; //the final codepoint in UTF-8 we want to represent
                 codePoint <<= 6; //Right shifting 6 to make room
-                secondHeaderByte &= 63;
-                codePoint |= secondHeaderByte;
+                int secondHeaderByte = fgetc(in);
+                codePoint |= secondHeaderByte&63;
+                //printf("The current 2 byte utf-8 char starts off with %x and is followed by %x\n", utfByte, secondHeaderByte);
             }
             else if(utfByte>>4 == 14){ //3 bytes
-                codePoint = headerByte;
-                char secondHeaderByte = fgetc(in);
-                codePoint >>= 6;
+                codePoint = utfByte;
+                int secondHeaderByte = fgetc(in);
+                codePoint <<= 6;
                 secondHeaderByte &= 63;
                 codePoint |= secondHeaderByte;
 
                 secondHeaderByte = fgetc(in);
-                codePoint >>= 6;
+                codePoint <<= 6;
                 secondHeaderByte &= 63;
                 codePoint |= secondHeaderByte;
             }
             else if(utfByte>>3 == 30){ //4 bytes
-                codePoint = headerByte;
-                char secondHeaderByte = fgetc(in);
-                codePoint >>= 6;
+                codePoint = utfByte;
+                int secondHeaderByte = fgetc(in);
+                codePoint <<= 6;
                 secondHeaderByte &= 63;
                 codePoint |= secondHeaderByte;
 
                 secondHeaderByte = fgetc(in);
-                codePoint >>= 6;
+                codePoint <<= 6;
                 secondHeaderByte &= 63;
                 codePoint |= secondHeaderByte;
 
                 secondHeaderByte = fgetc(in);
-                codePoint >>= 6;
+                codePoint <<= 6;
                 secondHeaderByte &= 63;
                 codePoint |= secondHeaderByte;
             }else {
                 return EOF; //EOF if not in proper UTF-8
             }
-            if(utfByteCopy == 0x83) //saving into main_rule
-                new_symbol(codePoint, main_rule);
-            else if(utfByteCopy == 0x85) //saving into child rule
-                new_symbol(codePoint, child_rule);
+
+            SYMBOL *symbolAdd = new_symbol(codePoint, brand_new_rule);
+            brand_new_rule->prev->next = symbolAdd;
+            symbolAdd->next = brand_new_rule;
+            symbolAdd->prev = brand_new_rule->prev;
+            brand_new_rule->prev = symbolAdd;
             utfByte = fgetc(in);
         } //end of inner loop
+        //printf("utfByte at end of inner loop is %x\n", utfByte);
 
         //By the end of the inner loop, utfByte should be pointing at either 0x85 or 0x84
         if(utfByte == 0x84) { //must check 0x85 in beginning of the loop
-            //main_rule = NULL; //Flush main_rule(set main_rule to be null)
+            //printf("utfByte at 0x84 end of inner loop\n");
+            byteTotal += ruleExpand(main_rule, out); //call byteTotal on current block before starting new one
+            //printf("byteTotal was updated to %d\n", byteTotal);
+
             utfByte = fgetc(in); //move from 0x84 to 0x83 for next outer loop iteration
+            //printf("utfByte after 0x84 is %x\n", utfByte);
         }
         else if(utfByte == 0x85){
             //add_rule(new_rule(codePoint)); //if rule delimiter, add child rule
+            //printf("utfByte at 0x85 end of inner loop\n");
         }
         //fputc(*ruleExpand(main_rule), out); //sends uncompressed string to out
-        byteTotal += ruleExpand(main_rule, out);
+        //byteTotal += ruleExpand(main_rule, out); //call byteTotal on new block before starting new one
+        //printf("byteTotal is currently %d\n", byteTotal);
 
-    //if 0x85, keep going
-    //otherwise, expect 0x84
-    //after 0x84, expect another 0x83
-    //after final 0x84, expect 0x82
-    //anything else, return EOF
     } //end of outer loop
+    printf("last byte: %x\n", utfByte);
+    //if(utfByte == 0x82){ //final block must be ruleExpand outside the loop
+    //    if(main_rule == NULL){
+    //        printf("YOU'RE FUCKING KIDDING ME\n");
+    //    }
+    //    byteTotal += ruleExpand(main_rule, out); //call byteTotal on new block before starting new one
+    //}
     return byteTotal;
 }
 
@@ -336,10 +371,10 @@ int validargs(int argc, char **argv)
                 return EXIT_FAILURE; //EXIT_FAILURE if BLOCKSIZE is not valid
             }
             else if(1 > strToInt(thirdArg) || strToInt(thirdArg) > 1024) {
-                printf("the failed number was %d\n", strToInt(thirdArg));
+                //printf("the failed number was %d\n", strToInt(thirdArg));
                 return EXIT_FAILURE; //EXIT_FAILURE if BLOCKSIZe is not valid
             }
-            printf("the successful number was %d\n", strToInt(thirdArg));
+            //printf("the successful number was %d\n", strToInt(thirdArg));
             int extendedBlockSize = strToInt(thirdArg)<<16;
             global_options = extendedBlockSize | global_options;//BLOCKSIZE in global_options if -b flag
         }

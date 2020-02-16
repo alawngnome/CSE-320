@@ -19,8 +19,8 @@
 int main(int argc, char **argv)
 {
     //printf("strEq returned for -c and -d: %d", strEq("-c", "-d"));
-    printf("validargs returned: %d\n", validargs(argc, argv));
-    //int ret;
+    //printf("validargs returned: %d\n", validargs(argc, argv));
+
     if(validargs(argc, argv) == -1)
         USAGE(*argv, EXIT_FAILURE);
     debug("Options: 0x%x", global_options);
@@ -29,12 +29,20 @@ int main(int argc, char **argv)
     /**If validargs returns 0, then your program must read data from stdin,
     either compressing it or decompressing it as specified by the values of
     global_options and block_size, and writing the result to stdout.
-    **/ //DO THIS
+    **/
     else if(validargs(argc, argv) == 0){
-        if((global_options & 4) == 1){
-            decompress(stdin, stdout);
+        //printf("global_options is: %x\n", global_options);
+        if((global_options & 4)>>2 == 1){ //third LSB is decompress
+            //printf("decompress is being called");
+            if(decompress(stdin, stdout) == EOF){
+                printf("FAILURE IN DECOMPRESS\n");
+                return EXIT_FAILURE;
+            }else {
+                printf("SUCCESS IN DECOMPRESS\n");
+                return EXIT_SUCCESS;
+            }
         }
-        else if((global_options & 2) == 1){} //extracting second LSB to test for compression
+        else if((global_options & 2)>>1 == 1){} //second LSB in compress
             //compress(stdin, stdout);
     }
 
