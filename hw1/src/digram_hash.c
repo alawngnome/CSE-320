@@ -13,6 +13,9 @@
  * Clear the digram hash table.
  */
 void init_digram_hash(void) {
+    for(int i = 0; i < MAX_DIGRAMS; i++){
+        *(digram_table + i) = NULL;
+    }
     // To be implemented.
 }
 
@@ -25,7 +28,40 @@ void init_digram_hash(void) {
  * symbol values) in the hash table, if there is one, otherwise NULL.
  */
 SYMBOL *digram_get(int v1, int v2) {
-    // To be implemented.
+
+    int position = DIGRAM_HASH(v1, v2);
+
+    int i = position; //copy to iterate and check against original
+
+    SYMBOL *digram = *(digram_table+i);
+
+    if(digram == NULL)
+        return NULL;
+
+
+    if(digram->value == v1 && digram->next->value == v2) {
+            return digram;
+    }
+
+    i++; //if not the first value, start loop from position + 1
+
+    while(i < MAX_DIGRAMS){ //check starting from position + 1
+        if(i == MAX_DIGRAMS)
+            i = 0;
+        else if(i == position)
+            return NULL;
+
+        SYMBOL *digram = *(digram_table+i);
+
+        if(digram == NULL || digram->next == NULL)
+            return NULL;
+
+        if(digram->value == v1 && digram->next->value == v2)
+            return digram;
+
+        i++;
+    }
+
     return NULL;
 }
 
@@ -50,7 +86,42 @@ SYMBOL *digram_get(int v1, int v2) {
  * sense to do it here.
  */
 int digram_delete(SYMBOL *digram) {
-    // To be implemented.
+
+    int position = DIGRAM_HASH(digram->value, digram->next->value);
+
+    int i = position; //copy to iterate and check against original
+
+    SYMBOL *secondDigram = *(digram_table+i);
+
+    if(secondDigram == NULL)
+        return -1;
+
+    if(digram->value == secondDigram->value) {
+        secondDigram = TOMBSTONE;
+        return 0;
+    }
+
+
+    i++;
+
+
+    while(i < MAX_DIGRAMS){ //check starting from position + 1
+        if(i == MAX_DIGRAMS)
+            i = 0;
+        else if(i == position)
+            return -1;
+
+        secondDigram = *(digram_table+i);
+
+        if(secondDigram == NULL)
+            return -1;
+
+        if(digram->value == secondDigram->value) //if matching digrams
+            secondDigram = TOMBSTONE;
+
+        i++;
+    }
+
     return -1;
 }
 
@@ -64,6 +135,46 @@ int digram_delete(SYMBOL *digram) {
  * table being full or the given digram not being well-formed.
  */
 int digram_put(SYMBOL *digram) {
-    // To be implemented.
+
+    int position = DIGRAM_HASH(digram->value, digram->next->value);
+
+    int i = position; //copy to iterate and check against original
+
+    SYMBOL *secondDigram = *(digram_table+i);
+
+    if(secondDigram == NULL)
+        return -1;
+
+    if(digram->value == secondDigram->value)
+        return 1;
+
+    if(secondDigram == NULL || secondDigram == TOMBSTONE)
+        *secondDigram = *digram;
+
+    i++;
+
+
+    while(i < MAX_DIGRAMS){ //check starting from position + 1
+        if(i == MAX_DIGRAMS)
+            i = 0;
+        else if(i == position)
+            return -1;
+
+        secondDigram = *(digram_table+i);
+
+        if(secondDigram == NULL)
+            return -1;
+
+        if(digram->value == secondDigram->value) //if matching digrams
+            return 1;
+
+        if(secondDigram == NULL || secondDigram == TOMBSTONE) {
+            *secondDigram = *digram;
+            return 0;
+        }
+
+        i++;
+    }
+
     return -1;
 }

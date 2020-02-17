@@ -35,10 +35,8 @@ int main(int argc, char **argv)
         if((global_options & 4)>>2 == 1){ //third LSB is decompress
             //printf("decompress is being called");
             if(decompress(stdin, stdout) == EOF){
-                printf("FAILURE IN DECOMPRESS\n");
                 return EXIT_FAILURE;
             }else {
-                printf("SUCCESS IN DECOMPRESS\n");
                 return EXIT_SUCCESS;
             }
         }
