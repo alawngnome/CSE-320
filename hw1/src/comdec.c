@@ -102,21 +102,6 @@ int ruleExpand(SYMBOL *rulePointer, FILE *out){;
         rulePointer = rulePointer->next;
     }
 
-
-    /**
-    SYMBOL *rule_head = rulePointer;
-    do{
-        rulePointer = rulePointer->next; //increment through the body of a rule
-        byteCount++; //counter for decompress return value
-        if(IS_TERMINAL(rulePointer)){ //terminal symbol
-            fputc(rulePointer->value, out);
-        }else { //non-terminal symbol
-            byteCount += ruleExpand(*(rule_map+(rulePointer->value)), out);
-            //printf("non-terminal symbol in ruleExpand\n");
-        }
-    }while(rulePointer != rule_head);
-    **/
-
     return byteCount;
 }
 
@@ -265,6 +250,8 @@ int decompress(FILE *in, FILE *out) {
 
         utfByte = fgetc(in);
     }
+    //0x82 should be read to end loop
+    fflush(out);
     return byteCount;
 }
 
