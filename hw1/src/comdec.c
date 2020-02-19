@@ -31,6 +31,81 @@
  * YOU WILL GET A ZERO!
  */
 
+/** Helper Function for outputting a single character at a time
+    Returns number of bytes written to fputc in the single character
+**/
+int utfOutput(int codePoint, FILE *out) {
+    if(0x0 <= codePoint && codePoint >= 0x7f){ //one byte
+        fputc(codePoint, out);
+        return 1;
+    }
+    else if(0x80 <= codePoint && codePoint >= 0x7ff){ //two bytes
+        int output = (codePoint>>6)&0x3f;
+        fputc(output|0xC0, out);
+
+        output = codePoint&0x3f;
+        fputc(output|0x80, out);
+
+        return 2;
+    }
+    else if(0x800 <= codePoint && codePoint >= 0xffff){ //three bytes
+        int output = (codePoint>>12)&0x3f;
+        fputc(output|0xE0, out);
+
+        output = (codePoint>>6)&0x3f;
+        fputc(output|0x80, out);
+
+        output = codePoint&0x3f;
+        fputc(output|0x80, out);
+
+        return 3;
+    }
+    if(0x10000 <= codePoint && codePoint >= 0x10ffff){ //four bytes
+        int output = codePoint>>18;
+        fputc(output|0xF0, out);
+
+        output = (codePoint>>12)&0x3f;
+        fputc(output|0x80, out);
+
+        output = (codePoint>>6)&0x3f;
+        fputc(output|0x80, out);
+
+        output = codePoint&0x3f;
+        fputc(output|0x80, out);
+    }
+    return -1;
+}
+
+/** Helper Function for outputting blocks with markers 0x83, 0x84, and 0x85
+    Returns amount of bytes processed;
+**/
+int compressOutput(SYMBOL *rulePointer, FILE *out) {
+    int byteCount = 0;
+
+    fputc(0x83, out); //start of block 0x83
+    byteCount++;
+
+    SYMBOL *main_ruleCopy = rulePointer;
+
+    do{
+        rulePointer = rulePointer-> next;
+
+        while(rulePointer->rule != rulePointer) {
+            byteCount += utfOutput(rulePointer->value, out);
+            rulePointer = rulePointer->next;
+        }
+        fputc(0x85, out); //end of rule, insert rule delimeter
+        rulePointer = rulePointer->nextr;
+
+    }while(rulePointer->nextr->rule != main_ruleCopy);
+
+    fputc(0x84, out); //end of block
+    byteCount++;
+
+    return byteCount;
+
+}
+
 /**
  * Main compression function.
  * Reads a sequence of bytes from a specified input stream, segments the
@@ -54,8 +129,40 @@
  * otherwise EOF.
  */
 int compress(FILE *in, FILE *out, int bsize) {
-    // To be implemented.
-    return EOF;
+    fputc(0x81, out); //start transmission with 0x81
+
+    int byteCount= 0;
+    int rulePointer = fgetc(in); //begins with first character of in
+    while(rulePointer != EOF){
+        //at the start of every block loop, reinitialize symbols, rules, and digram_hash
+        init_symbols();
+        init_rules();
+        init_digram_hash();
+
+        int blockCounter = 0;
+        while(rulePointer != EOF && blockCounter < bsize) {//while input still remains
+            SYMBOL *new_terminal = new_symbol(rulePointer, main_rule);
+            insert_after(main_rule->prev, new_terminal); //append to end
+            check_digram(new_terminal->prev); //check second to last symbol
+
+            rulePointer = fgetc(in);
+            blockCounter++;
+        }
+        if(rulePointer != EOF && blockCounter == bsize) { //if whole block filled up but other blocks remaining
+            bsize = 0; //reset block counter
+            int byteToAdd = compressOutput(main_rule, out);
+            if(byteToAdd == -1)
+                return EOF;
+            byteCount += compressOutput(main_rule, out);
+        }
+        else if(rulePointer == EOF && blockCounter < bsize){ //if incomplete block left when EOF reached
+            int byteToAdd = compressOutput(main_rule, out);
+            if(byteToAdd == -1)
+                return EOF;
+            byteCount += compressOutput(main_rule, out);
+        }
+    }
+    return byteCount;
 }
 
 
@@ -249,6 +356,9 @@ int decompress(FILE *in, FILE *out) {
         //printList(main_rule);
 
         utfByte = fgetc(in);
+    }
+    if(utfByte != 0x82) {
+        return EOF;
     }
     //0x82 should be read to end loop
     fflush(out);

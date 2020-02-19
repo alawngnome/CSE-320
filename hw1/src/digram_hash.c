@@ -149,7 +149,7 @@ int digram_put(SYMBOL *digram) {
         return 1;
 
     if(secondDigram == NULL || secondDigram == TOMBSTONE)
-        *secondDigram = *digram;
+        secondDigram = digram;
 
     i++;
 
@@ -169,7 +169,7 @@ int digram_put(SYMBOL *digram) {
             return 1;
 
         if(secondDigram == NULL || secondDigram == TOMBSTONE) {
-            *secondDigram = *digram;
+            secondDigram = digram;
             return 0;
         }
 

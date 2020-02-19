@@ -41,13 +41,13 @@ int main(int argc, char **argv)
             }
         }
         else if((global_options & 2)>>1 == 1){} //second LSB in compress
-            //compress(stdin, stdout);
+            if(compress(stdin, stdout, global_options>>16) == EOF){
+                return EXIT_FAILURE;
+            }else {
+                return EXIT_SUCCESS;
+            }
     }
 
-    //Upon completion...
-    return EXIT_SUCCESS;
-    //Upon failure...
-    return EXIT_FAILURE;
 }
 
 /*

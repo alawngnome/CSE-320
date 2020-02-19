@@ -86,8 +86,8 @@ void insert_after(SYMBOL *this, SYMBOL *next) {
 static void delete_symbol(SYMBOL *this) {
     debug("Delete symbol <%lu> (value=%d)", SYMBOL_INDEX(this), this->value);
     if(IS_RULE_HEAD(this)) {
-	fprintf(stderr, "Attempting to delete a rule sentinel!\n");
-	abort();
+	   fprintf(stderr, "Attempting to delete a rule sentinel!\n");
+	   abort();
     }
     // Splice the symbol out, deleting the digram headed by the neighbor to the left.
     join_symbols(this->prev, this->next);
@@ -114,8 +114,8 @@ static void expand_instance(SYMBOL *this) {
     debug("Expand last instance of underutilized rule [%lu] for %d",
 	   SYMBOL_INDEX(rule), rule->value);
     if(rule->refcnt != 1) {
-	fprintf(stderr, "Attempting to delete a rule with multiple references!\n");
-	abort();
+	   fprintf(stderr, "Attempting to delete a rule with multiple references!\n");
+	   abort();
     }
     SYMBOL *left = this->prev;
     SYMBOL *right = this->next;
