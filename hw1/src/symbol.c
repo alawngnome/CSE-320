@@ -48,36 +48,34 @@ void init_symbols(void) {
  * allocation.
  */
 SYMBOL *new_symbol(int value, SYMBOL *rule) { //*rule here in the parameter refers to the rule of the parent head
-    SYMBOL ruleReturn;
-    SYMBOL *pointerReturn;
+    SYMBOL* ruleReturn = symbol_storage + num_symbols;
+
     if(recycled_symbols != NULL){
-        pointerReturn = recycled_symbols;
-        ruleReturn = *recycled_symbols; //????? how to use recycled symbol
+        debug("Recycling...");
+        ruleReturn = recycled_symbols;
         recycled_symbols = recycled_symbols->next;
     }
-    ruleReturn.value = value;
-    if(value < FIRST_NONTERMINAL)
-        ruleReturn.rule = NULL;
-    else{
-        if(rule != NULL) {
-            rule->refcnt += 1;
-            ruleReturn.rule = rule;
-        }
-    }
-    ruleReturn.refcnt = 0;
-    ruleReturn.next = NULL;
-    ruleReturn.prev = NULL;
-    ruleReturn.nextr = NULL;
-    ruleReturn.prevr = NULL;
-
-    if(recycled_symbols == NULL){
-        pointerReturn = symbol_storage + num_symbols;
-        *(symbol_storage + num_symbols) = ruleReturn;
-        //symbol_storage = symbol_storage->next;
+    else {
         num_symbols++;
     }
 
-    return pointerReturn;
+    ruleReturn->value = value;
+    if(value < FIRST_NONTERMINAL)
+        ruleReturn->rule = NULL;
+
+    else{
+        if(rule != NULL) {
+            rule->refcnt += 1;
+            ruleReturn->rule = rule;
+        }
+    }
+    ruleReturn->refcnt = 0;
+    ruleReturn->next = NULL;
+    ruleReturn->prev = NULL;
+    ruleReturn->nextr = NULL;
+    ruleReturn->prevr = NULL;
+
+    return ruleReturn;
 }
 
 /**
@@ -94,8 +92,9 @@ SYMBOL *new_symbol(int value, SYMBOL *rule) { //*rule here in the parameter refe
 void recycle_symbol(SYMBOL *s) {
     if(recycled_symbols == NULL){
         recycled_symbols = s;
+        s->next = NULL;
         return;
     }
-    recycled_symbols->next = recycled_symbols;
+    s->next = recycled_symbols;
     recycled_symbols = s;
 }

@@ -73,7 +73,7 @@ void init_rules(void) {
  */
 SYMBOL *new_rule(int v) {
     SYMBOL *ruleReturn = new_symbol(v, NULL);
-    if(v < next_nonterminal_value){
+    if(v < FIRST_NONTERMINAL){
         return NULL;
     }
     ruleReturn->rule = ruleReturn;
@@ -83,7 +83,7 @@ SYMBOL *new_rule(int v) {
     ruleReturn->nextr = NULL;
 
     // To be implemented.
-    return ruleReturn->rule;
+    return ruleReturn;
 }
 
 /**
@@ -102,7 +102,9 @@ void add_rule(SYMBOL *rule) {
         main_rule = rule;
         main_rule->nextr = main_rule;
         main_rule->prevr = main_rule;
-    }else {
+    }
+
+    else {
         main_rule->prevr->nextr = rule;
         rule->nextr = main_rule; //rule.nextr = main_rule
         rule->prevr = main_rule->prevr; //rule.prevr = main_rule.prevr

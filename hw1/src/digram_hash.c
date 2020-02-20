@@ -32,14 +32,16 @@ SYMBOL *digram_get(int v1, int v2) {
     int position = DIGRAM_HASH(v1, v2);
 
     int i = position; //copy to iterate and check against original
-
     SYMBOL *digram = *(digram_table+i);
 
-    if(digram == NULL)
+    if(digram == NULL) {
+        debug("Digram not found :(\n");
         return NULL;
+    }
 
 
-    if(digram->value == v1 && digram->next->value == v2) {
+    if(digram != TOMBSTONE && digram->value == v1 && digram->next->value == v2) {
+            debug("Digram found at index %d\n", i);
             return digram;
     }
 
@@ -53,11 +55,19 @@ SYMBOL *digram_get(int v1, int v2) {
 
         SYMBOL *digram = *(digram_table+i);
 
-        if(digram == NULL || digram->next == NULL)
-            return NULL;
+        if (digram == TOMBSTONE) {
 
-        if(digram->value == v1 && digram->next->value == v2)
+        }
+
+        else if(digram == NULL || digram->next == NULL) {
+            debug("Digram not found\n");
+            return NULL;
+        }
+
+        else if(digram->value == v1 && digram->next->value == v2) {
+            debug("Digram found at index %d\n", i);
             return digram;
+        }
 
         i++;
     }
@@ -93,11 +103,13 @@ int digram_delete(SYMBOL *digram) {
 
     SYMBOL *secondDigram = *(digram_table+i);
 
-    if(secondDigram == NULL)
+    if(secondDigram == NULL) {
+        debug("Digram %lu not found while deleting", SYMBOL_INDEX(digram));
         return -1;
+    }
 
-    if(digram->value == secondDigram->value) {
-        secondDigram = TOMBSTONE;
+    if(digram == secondDigram) {
+        *(digram_table + i) = TOMBSTONE;
         return 0;
     }
 
@@ -113,11 +125,20 @@ int digram_delete(SYMBOL *digram) {
 
         secondDigram = *(digram_table+i);
 
-        if(secondDigram == NULL)
-            return -1;
+        if (secondDigram == TOMBSTONE)
+        {
 
-        if(digram->value == secondDigram->value) //if matching digrams
-            secondDigram = TOMBSTONE;
+        }
+
+        else if(secondDigram == NULL) {
+            return -1;
+        }
+
+        else if(digram == secondDigram) {  //if matching digrams
+            *(digram_table + i) = TOMBSTONE;
+            debug("Digram deleted at index %d", i);
+            return 0;
+        }
 
         i++;
     }
@@ -142,14 +163,22 @@ int digram_put(SYMBOL *digram) {
 
     SYMBOL *secondDigram = *(digram_table+i);
 
-    if(secondDigram == NULL)
+    if(digram == NULL)
         return -1;
 
-    if(digram->value == secondDigram->value)
-        return 1;
+    if (digram->next == NULL)
+        return -1;
 
-    if(secondDigram == NULL || secondDigram == TOMBSTONE)
-        secondDigram = digram;
+    if(digram == secondDigram) {
+        debug("Digram already exists :(\n");
+        return 1;
+    }
+
+    if(secondDigram == NULL || secondDigram == TOMBSTONE) {
+        debug("Digram %lu (%d, %d) inserted at index %d\n", SYMBOL_INDEX(digram), digram->value, digram->next->value, i);
+        *(digram_table + i) = digram;
+        return 0;
+    }
 
     i++;
 
@@ -165,11 +194,11 @@ int digram_put(SYMBOL *digram) {
         if(secondDigram == NULL)
             return -1;
 
-        if(digram->value == secondDigram->value) //if matching digrams
+        if(digram == secondDigram) //if matching digrams
             return 1;
 
         if(secondDigram == NULL || secondDigram == TOMBSTONE) {
-            secondDigram = digram;
+            *(digram_table + i) = digram;
             return 0;
         }
 

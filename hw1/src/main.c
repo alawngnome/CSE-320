@@ -41,7 +41,7 @@ int main(int argc, char **argv)
             }
         }
         else if((global_options & 2)>>1 == 1){} //second LSB in compress
-            if(compress(stdin, stdout, global_options>>16) == EOF){
+            if(compress(stdin, stdout, (global_options>>16)*1024) == EOF){
                 return EXIT_FAILURE;
             }else {
                 return EXIT_SUCCESS;
