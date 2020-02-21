@@ -84,10 +84,10 @@ int utfOutput(int codePoint, FILE *out) {
     Returns amount of bytes processed;
 **/
 int compressOutput(FILE *out) {
-    int byteCount = 0;
+    int blockByteCount = 0;
 
     fputc(0x83, out); //start of block 0x83
-    byteCount++;
+    blockByteCount++;
 
     SYMBOL *rulePointer = main_rule;
 
@@ -98,7 +98,7 @@ int compressOutput(FILE *out) {
         SYMBOL* s = rulePointer;
 
         while(1) {
-            byteCount += utfOutput(s->value, out);
+            blockByteCount += utfOutput(s->value, out);
             s = s->next;
 
             if (s == rulePointer)
@@ -110,14 +110,13 @@ int compressOutput(FILE *out) {
             break;
 
         fputc(0x85, out); //end of rule, insert rule delimeter
-        byteCount++;
+        blockByteCount++;
     }
 
     fputc(0x84, out); //end of block
-    byteCount++;
-    debug("byteCount is %d", byteCount);
+    blockByteCount++;
 
-    return byteCount;
+    return blockByteCount;
 
 }
 /**
@@ -209,6 +208,8 @@ int compress(FILE *in, FILE *out, int bsize) {
     byteCount += 1;
 
     fflush(out); // Added
+    //return byteCount;
+    debug("byteCount is %d", byteCount);
     return byteCount;
 }
 

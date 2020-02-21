@@ -22,6 +22,7 @@ int next_nonterminal_value = FIRST_NONTERMINAL;
 void init_symbols(void) {
     num_symbols = 0;
     next_nonterminal_value = FIRST_NONTERMINAL;
+    recycled_symbols = NULL;
 }
 
 /**

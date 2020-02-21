@@ -124,12 +124,21 @@ void add_rule(SYMBOL *rule) {
  * the disposition of those symbols is the responsibility of the caller.
  */
 void delete_rule(SYMBOL *rule) {
+    if(main_rule == NULL || rule == NULL)
+        return;
+
+    if(main_rule->nextr == NULL)
+        main_rule = NULL;
+
+    if(main_rule == rule)
+        main_rule = main_rule->nextr;
+
+    rule->prevr->nextr = rule->nextr;
+    rule->nextr->prevr = rule->prevr;
+
     if((rule->refcnt) == 0){
         recycle_symbol(rule);
     }
-    rule->prevr->nextr = rule->nextr;
-    rule->nextr->prevr = rule->prevr;
-    // To be implemented.
 }
 
 /**
