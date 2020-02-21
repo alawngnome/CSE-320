@@ -119,24 +119,6 @@ int compressOutput(FILE *out) {
 
     return byteCount;
 
-
-    /*do{
-        rulePointer = rulePointer-> next;
-
-        while(rulePointer->rule != rulePointer) {
-            byteCount += utfOutput(rulePointer->value, out);
-            rulePointer = rulePointer->next;
-        }
-        fputc(0x85, out); //end of rule, insert rule delimeter
-        rulePointer = rulePointer->nextr;
-
-    }while(rulePointer->nextr->rule != main_ruleCopy);
-
-    fputc(0x84, out); //end of block
-    byteCount++;
-
-    return byteCount; */
-
 }
 /**
  * Main compression function.
@@ -161,6 +143,10 @@ int compressOutput(FILE *out) {
  * otherwise EOF.
  */
 int compress(FILE *in, FILE *out, int bsize) {
+    if(in == NULL || out == NULL){
+        return EOF;
+    }
+
     fputc(0x81, out); //start transmission with 0x81
 
     int byteCount= 1;
@@ -178,7 +164,10 @@ int compress(FILE *in, FILE *out, int bsize) {
 
         int blockCounter = 0;
 
-        while(blockCounter < bsize) {//while input still remains
+        int kilo = 0;
+        kilo = bsize; // Added
+        while(blockCounter < kilo) {//while input still remains
+            debug("blockCounter: %d", blockCounter);
             rulePointer = fgetc(in);
 
             if (rulePointer == EOF)
@@ -198,7 +187,8 @@ int compress(FILE *in, FILE *out, int bsize) {
         }
         debug("huh.");
 
-        if(rulePointer != EOF && blockCounter == bsize) { //if whole block filled up but other blocks remaining
+
+        if(rulePointer != EOF && blockCounter == kilo) { //if whole block filled up but other blocks remaining
             blockCounter = 0; //reset block counter
 
             int byteToAdd = compressOutput(out);
@@ -206,7 +196,7 @@ int compress(FILE *in, FILE *out, int bsize) {
                 return EOF;
             byteCount += byteToAdd;
         }
-        else if(rulePointer == EOF && blockCounter < bsize){ //if incomplete block left when EOF reached
+        else if(rulePointer == EOF && blockCounter < kilo){ //if incomplete block left when EOF reached
             debug("Incomplete block found\n");
             int byteToAdd = compressOutput(out);
 
@@ -218,6 +208,7 @@ int compress(FILE *in, FILE *out, int bsize) {
     fputc(0x82, out);
     byteCount += 1;
 
+    fflush(out); // Added
     return byteCount;
 }
 
@@ -424,6 +415,7 @@ int decompress(FILE *in, FILE *out) {
         return EOF;
     }
     //0x82 should be read to end loop
+    debug("decompress byteCount is %d", byteCount);
     fflush(out);
     return byteCount;
 }
@@ -516,8 +508,11 @@ int validargs(int argc, char **argv)
     if(argc > 4)
         return EXIT_FAILURE; //if no -h flag, maximum 4 arguments
     if(strEq(firstArg, "-c") == 0) {
-        if(argc == 2)
+        if(argc == 2) {
+            int extendedBlockSize = 0x0400<<16; //default block_size
+            global_options = extendedBlockSize | global_options;//BLOCKSIZE in global_options if -b flag
             return EXIT_SUCCESS; //EXIT_SUCCESS if only -c flag exists
+        }
         char *secondArg = *(argv + 2); //otherwise test the second argument
         if(strEq(secondArg, "-d") == 0 || strEq(secondArg, "-h") == 0)
             return EXIT_FAILURE; //EXIT_FAILURE if -c -d or -c -h flags);
@@ -537,9 +532,6 @@ int validargs(int argc, char **argv)
             }
             //printf("the successful number was %d\n", strToInt(thirdArg));
             int extendedBlockSize = strToInt(thirdArg)<<16;
-            global_options = extendedBlockSize | global_options;//BLOCKSIZE in global_options if -b flag
-        } else { //second flag is not -b
-            int extendedBlockSize = 0x0400<<16;
             global_options = extendedBlockSize | global_options;//BLOCKSIZE in global_options if -b flag
         }
         global_options = 2 | global_options; //if -c flag, set second LSB to 1

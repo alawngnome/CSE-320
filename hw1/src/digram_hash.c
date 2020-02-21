@@ -34,7 +34,7 @@ SYMBOL *digram_get(int v1, int v2) {
     int i = position; //copy to iterate and check against original
     SYMBOL *digram = *(digram_table+i);
 
-    if(digram == NULL) {
+    if(digram == NULL /*|| digram->next == NULL*/) {
         debug("Digram not found :(\n");
         return NULL;
     }
@@ -47,7 +47,7 @@ SYMBOL *digram_get(int v1, int v2) {
 
     i++; //if not the first value, start loop from position + 1
 
-    while(i < MAX_DIGRAMS){ //check starting from position + 1
+    while(i <= MAX_DIGRAMS){ //check starting from position + 1
         if(i == MAX_DIGRAMS)
             i = 0;
         else if(i == position)
@@ -56,7 +56,7 @@ SYMBOL *digram_get(int v1, int v2) {
         SYMBOL *digram = *(digram_table+i);
 
         if (digram == TOMBSTONE) {
-
+            //continue;
         }
 
         else if(digram == NULL || digram->next == NULL) {
@@ -117,7 +117,7 @@ int digram_delete(SYMBOL *digram) {
     i++;
 
 
-    while(i < MAX_DIGRAMS){ //check starting from position + 1
+    while(i <= MAX_DIGRAMS){ //check starting from position + 1
         if(i == MAX_DIGRAMS)
             i = 0;
         else if(i == position)
@@ -127,7 +127,7 @@ int digram_delete(SYMBOL *digram) {
 
         if (secondDigram == TOMBSTONE)
         {
-
+            //continue;
         }
 
         else if(secondDigram == NULL) {
@@ -183,16 +183,13 @@ int digram_put(SYMBOL *digram) {
     i++;
 
 
-    while(i < MAX_DIGRAMS){ //check starting from position + 1
+    while(i <= MAX_DIGRAMS){ //check starting from position + 1
         if(i == MAX_DIGRAMS)
             i = 0;
         else if(i == position)
             return -1;
 
         secondDigram = *(digram_table+i);
-
-        if(secondDigram == NULL)
-            return -1;
 
         if(digram == secondDigram) //if matching digrams
             return 1;
