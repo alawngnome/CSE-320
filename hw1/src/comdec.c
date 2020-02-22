@@ -498,38 +498,38 @@ int validargs(int argc, char **argv)
     //printf("argv[0] is %s\n", argv[0]); TESTING ONLY
     // To be implemented.
     if(argc <= 1)
-        return EXIT_FAILURE; //EXIT_FAILURE if no flags are provided
+        return -1; //EXIT_FAILURE if no flags are provided
     char *firstArg = *(argv + 1);
     //printf("%d and %d",*firstArg, *(firstArg+1));
     //checking the first character
     if(strEq(firstArg, "-h") == 0) {
         global_options = 1 | global_options; //if -h flag, set LSB to 1
-        return EXIT_SUCCESS; //EXIT_SUCCESS if the first argument is -h
+        return 0; //EXIT_SUCCESS if the first argument is -h
     } //if -h is not the first character, it should not exist
     if(argc > 4)
-        return EXIT_FAILURE; //if no -h flag, maximum 4 arguments
+        return -1; //if no -h flag, maximum 4 arguments
     if(strEq(firstArg, "-c") == 0) {
         if(argc == 2) {
             int extendedBlockSize = 0x0400<<16; //default block_size
             global_options = extendedBlockSize | global_options;//BLOCKSIZE in global_options if -b flag
-            return EXIT_SUCCESS; //EXIT_SUCCESS if only -c flag exists
+            return 0; //EXIT_SUCCESS if only -c flag exists
         }
         char *secondArg = *(argv + 2); //otherwise test the second argument
         if(strEq(secondArg, "-d") == 0 || strEq(secondArg, "-h") == 0)
-            return EXIT_FAILURE; //EXIT_FAILURE if -c -d or -c -h flags);
+            return -1; //EXIT_FAILURE if -c -d or -c -h flags);
         else if(strEq(secondArg, "-b") == 0) { //checking that the second flag is -b
             if(argc != 4) {
                 //printf("The number of args is: %d\n", argc);
-                return EXIT_FAILURE; //EXIT FAILURE if not in format sequitur -c -b BLOCKSIZE
+                return -1; //EXIT FAILURE if not in format sequitur -c -b BLOCKSIZE
             }
             char *thirdArg = *(argv + 3);
             if(strToInt(thirdArg) == -1){
                 printf("BLOCKSIZE was not valid\n");
-                return EXIT_FAILURE; //EXIT_FAILURE if BLOCKSIZE is not valid
+                return -1; //EXIT_FAILURE if BLOCKSIZE is not valid
             }
             else if(1 > strToInt(thirdArg) || strToInt(thirdArg) > 1024) {
                 //printf("the failed number was %d\n", strToInt(thirdArg));
-                return EXIT_FAILURE; //EXIT_FAILURE if BLOCKSIZE is not valid
+                return -1; //EXIT_FAILURE if BLOCKSIZE is not valid
             }
             //printf("the successful number was %d\n", strToInt(thirdArg));
             int extendedBlockSize = strToInt(thirdArg)<<16;
@@ -539,12 +539,14 @@ int validargs(int argc, char **argv)
     }
     else if(strEq(firstArg, "-d") == 0) {
         if(argc > 2) {
-            return EXIT_FAILURE; //EXIT_FAILURE if a second flag after -d exists
+            return -1; //EXIT_FAILURE if a second flag after -d exists
         }
         global_options = 4 | global_options; //if -d flag, set third LSB to 1
     }
     else if(strEq(firstArg, "-b") == 0) {
-        return EXIT_FAILURE; //EXIT_FAILURE if the first flag is -b
+        return -1; //EXIT_FAILURE if the first flag is -b
     }
     return 0;
 }
+
+
