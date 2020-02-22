@@ -149,6 +149,7 @@ int compress(FILE *in, FILE *out, int bsize) {
 
     int byteCount= 1;
     int rulePointer = 0; //begins with first character of in
+    int earlyBreak = 1; //if broke off at first character
 
     while(rulePointer != EOF){
         //at the start of every block loop, reinitialize symbols, rules, and digram_hash
@@ -156,11 +157,11 @@ int compress(FILE *in, FILE *out, int bsize) {
         init_rules();
         init_digram_hash();
 
+        int blockCounter = 0;
+
         SYMBOL *ruleAdd = new_rule(next_nonterminal_value);
         add_rule(ruleAdd);
         next_nonterminal_value++;
-
-        int blockCounter = 0;
 
         int kilo = 0;
         kilo = bsize; // Added
@@ -182,10 +183,15 @@ int compress(FILE *in, FILE *out, int bsize) {
             debug("wackeroni");
 
             blockCounter++;
+            earlyBreak = 0; //if not broke stays at 0;
         }
         debug("huh.");
 
-
+        if(earlyBreak == 1){
+            fputc(0x82, out);
+            fflush(out);
+            return 2;
+        }
         if(rulePointer != EOF && blockCounter == kilo) { //if whole block filled up but other blocks remaining
             blockCounter = 0; //reset block counter
 
