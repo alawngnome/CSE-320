@@ -97,6 +97,9 @@ SYMBOL *digram_get(int v1, int v2) {
  */
 int digram_delete(SYMBOL *digram) {
 
+    if(digram == NULL)
+        return -1;
+
     int position = DIGRAM_HASH(digram->value, digram->next->value);
 
     int i = position; //copy to iterate and check against original

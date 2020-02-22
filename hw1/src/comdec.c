@@ -518,7 +518,7 @@ int validargs(int argc, char **argv)
             return 0; //EXIT_SUCCESS if only -c flag exists
         }
         char *secondArg = *(argv + 2); //otherwise test the second argument
-        if(strEq(secondArg, "-d") == 0 || strEq(secondArg, "-h") == 0)
+        if(strEq(secondArg, "-d") == 0 || strEq(secondArg, "-h") == 0 || strEq(secondArg, "-c") == 0)
             return -1; //EXIT_FAILURE if -c -d or -c -h flags);
         else if(strEq(secondArg, "-b") == 0) { //checking that the second flag is -b
             if(argc != 4) {
