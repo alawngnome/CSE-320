@@ -142,9 +142,8 @@ int compressOutput(FILE *out) {
  * otherwise EOF.
  */
 int compress(FILE *in, FILE *out, int bsize) {
-    if(in == NULL || out == NULL){
+    if(in == NULL || out == NULL)
         return EOF;
-    }
 
     fputc(0x81, out); //start transmission with 0x81
 
@@ -386,6 +385,10 @@ SYMBOL *decompressBlock(FILE *in) {
  * @return  The number of bytes written, in case of success, otherwise EOF.
  */
 int decompress(FILE *in, FILE *out) {
+    if(in || out == NULL){
+        return EOF;
+    }
+
     if(fgetc(in) != 0x81){
         return EOF;
     }
