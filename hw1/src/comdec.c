@@ -385,7 +385,7 @@ SYMBOL *decompressBlock(FILE *in) {
  * @return  The number of bytes written, in case of success, otherwise EOF.
  */
 int decompress(FILE *in, FILE *out) {
-    if(in || out == NULL){
+    if(in == NULL || out == NULL){
         return EOF;
     }
 
