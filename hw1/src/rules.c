@@ -98,6 +98,9 @@ SYMBOL *new_rule(int v) {
  * the list; i.e. between main_rule->prevr and main_rule.
  */
 void add_rule(SYMBOL *rule) {
+    if(rule == NULL)
+        return;
+
     if(main_rule == NULL) {
         main_rule = rule;
         main_rule->nextr = main_rule;
@@ -148,6 +151,9 @@ void delete_rule(SYMBOL *rule) {
  * @return  The same rule that was passed as argument.
  */
 SYMBOL *ref_rule(SYMBOL *rule) {
+    if(rule == NULL)
+        return NULL;
+
     rule->refcnt++;
     return rule;
 }
@@ -161,6 +167,10 @@ SYMBOL *ref_rule(SYMBOL *rule) {
  *
  */
 void unref_rule(SYMBOL *rule) {
+    if(rule == NULL)
+        return;
+
+
     if(rule->refcnt == 0){
         fprintf(stderr, "refcnt became negative\n");
         void abort(void);

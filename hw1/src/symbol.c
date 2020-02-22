@@ -91,6 +91,9 @@ SYMBOL *new_symbol(int value, SYMBOL *rule) { //*rule here in the parameter refe
  * next field of the SYMBOL structure to chain together the entries.
  */
 void recycle_symbol(SYMBOL *s) {
+    if(s == NULL)
+        return;
+
     if(recycled_symbols == NULL){
         recycled_symbols = s;
         s->next = NULL;
