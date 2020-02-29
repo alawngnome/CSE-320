@@ -1,12 +1,15 @@
 /* direct.c
-  
+
    SCCS ID	@(#)direct.c	1.6	7/9/87
-  
+
  *
  *	My own substitution for the berkeley reading routines,
  *	for use on System III machines that don't have any other
  *	alternative.
  */
+
+#include "customize.h"
+#include <sys/stat.h>
 
 #define NAMELENGTH	14
 #ifdef	SYS_III
@@ -29,16 +32,20 @@ struct direct {			/* What these routines return. */
 
 
  /*
-  * Read a directory, returning the next (non-empty) slot. 
+  * Read a directory, returning the next (non-empty) slot.
   */
 
-READ           *
+
+#ifdef SYS_III
+READ *
 readdir(dp)
-    OPEN           *dp;
+OPEN *dp;
 {
     static READ     direct;
 
     /* This read depends on direct being similar to dir_entry. */
+
+
 
     while (fread(&direct, sizeof(struct dir_entry), 1, dp) != 0) {
 	direct.terminator = '\0';
@@ -48,3 +55,4 @@ readdir(dp)
 
     return (READ *) NULL;
 }
+#endif

@@ -20,3 +20,8 @@ struct htable {
 
 #define OLD	0		/* inode was in hash already */
 #define NEW	1		/* inode has been added to hash */
+
+//ANSI C PROTOTYPES HERE
+int h_enter(dev_t, ino_t);
+void h_stats();
+//ANSI C PROTOTYPES HERE

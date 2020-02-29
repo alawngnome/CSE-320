@@ -1,12 +1,12 @@
 /* hash.c
-  
+
    SCCS ID	@(#)hash.c	1.6	7/9/87
-  
+
  * Hash table routines for AGEF.  These routines keep the program from
  * counting the same inode twice.  This can happen in the case of a
  * file with multiple links, as in a news article posted to several
  * groups.  The use of a hashing scheme was suggested by Anders
- * Andersson of Uppsala University, Sweden.  (enea!kuling!andersa) 
+ * Andersson of Uppsala University, Sweden.  (enea!kuling!andersa)
  */
 
 /* hash.c change history:
@@ -17,11 +17,12 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include "hash.h"
+#include <string.h> //ADDED
 
 static struct htable *tables[TABLES];
-extern char *malloc();		/* added 6/17/88 */
-extern char *realloc();		/* added 6/17/88 */
-extern char *calloc();		/* added 6/17/88 */
+extern void *malloc();		/* added 6/17/88 */
+extern void *realloc();		/* added 6/17/88 */
+extern void *calloc();		/* added 6/17/88 */
 
 /* These are for statistical use later on. */
 static int      hs_tables = 0,	/* number of tables allocated */
@@ -37,9 +38,10 @@ static int      hs_tables = 0,	/* number of tables allocated */
   * This routine takes in a device/inode, and tells whether it's been
   * entered in the table before.  If it hasn't, then the inode is added
   * to the table.  A separate table is maintained for each major device
-  * number, so separate file systems each have their own table. 
+  * number, so separate file systems each have their own table.
   */
 
+int
 h_enter(dev, ino)
     dev_t           dev;
     ino_t           ino;
@@ -55,7 +57,7 @@ h_enter(dev, ino)
      * Find the hash table for this device. We keep the table pointer
      * around between calls to h_enter, so that we don't have to locate
      * the correct hash table every time we're called.  I don't expect
-     * to jump from device to device very often. 
+     * to jump from device to device very often.
      */
     if (!tablep || tablep->device != dev) {
 	for (i = 0; tables[i] && tables[i]->device != dev;)
@@ -67,7 +69,7 @@ h_enter(dev, ino)
 		return NEW;
 	    };
 #ifdef BSD
-	    bzero(tables[i], sizeof(struct htable)); 
+	    bzero(tables[i], sizeof(struct htable));
 #else
 	    memset((char *) tables[i], '\0', sizeof (struct htable));
 #endif
@@ -82,7 +84,7 @@ h_enter(dev, ino)
 
     /*
      * Now check the key list for that bucket.  Just a simple linear
-     * search. 
+     * search.
      */
     keyp = bucketp->keys;
     for (i = 0; i < bucketp->filled && *keyp != ino;)

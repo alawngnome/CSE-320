@@ -1,24 +1,24 @@
 /* vtree
-  
+
    +=======================================+
    | This program is in the public domain. |
    +=======================================+
-  
-   This program shows the directory structure of a filesystem or 
+
+   This program shows the directory structure of a filesystem or
    part of one.  It also shows the amount of space taken up by files
-   in each subdirectory. 
-  
+   in each subdirectory.
+
    Call via
-  
+
 	vtree fn1 fn2 fn3 ...
-  
+
    If any of the given filenames is a directory (the usual case),
    vtree will recursively descend into it, and the output line will
    reflect the accumulated totals for all files in the directory.
-   
-   This program is based upon "agef" written by David S. Hayes at the 
+
+   This program is based upon "agef" written by David S. Hayes at the
    Army Artificial Intelligence Center at the Pentagon.
-   
+
    This program is dependent upon the new directory routines written by
    Douglas A. Gwyn at the US Army Ballistic Research Laboratory at the
    Aberdeen Proving Ground in Maryland.
@@ -63,6 +63,9 @@
 #include "customize.h"
 #include "hash.h"
 
+#include <unistd.h>
+#include <stdlib.h>
+
 
 #ifdef	SYS_III
 	#define	rewinddir(fp)	rewind(fp)
@@ -94,13 +97,21 @@ struct RD_list {
 };
 #endif
 
+//ANSI C FUNCTION PROTOTYPES
+static char *lastfield(char*,int);
+static void down(char*);
+static int	chk_4_dir(char *);
+static int	is_directory(char*);
+static void get_data(char*,int);
+//int vtree_main(int,char*); ALREADY DEFINED IN main.c
 
+//ANSI C FUNCTION PROTOTYPES
 
 int		indent = 0,		/* current indent */
 		depth = 9999,		/* max depth */
-		cur_depth = 0,	
+		cur_depth = 0,
 		sum = FALSE,		/* sum the subdirectories */
-		dup = FALSE,		/* use duplicate inodes */
+		dupkevin = FALSE,		/* use dupkevinlicate inodes */
 		floating = FALSE,	/* floating column widths */
 		sort = FALSE,
 		cnt_inodes = FALSE,	/* count inodes */
@@ -151,25 +162,25 @@ char *r;
 
  /*
   * We ran into a subdirectory.  Go down into it, and read everything
-  * in there. 
+  * in there.
   */
 int	indented = FALSE;	/* These had to be global since they */
 int	last_indent = 0;	/* determine what gets displayed during */
 int	last_subdir = FALSE;	/* the visual display */
 
 
-
+void
 down(subdir)
 char	*subdir;
 {
 OPEN	*dp;			/* stream from a directory */
 OPEN	*opendir ();
 char	cwd[NAMELEN], tmp[NAMELEN];
-char	*sptr;
+//char	*sptr;
 READ	*file;			/* directory entry */
 READ	*readdir ();
 int	i, x;
-struct	stat	stb;
+//struct	stat	stb;
 
 #ifdef	MEMORY_BASED
 struct RD_list	*head, *tail, *tmp_RD, *tmp1_RD;		/* head and tail of directory list */
@@ -207,6 +218,8 @@ READ		tmp_entry;
 						printf("%s",H_CHAR);
 				printf("%s%s%s ",T_CHAR,H_CHAR,A_CHAR);
 			}
+		//} //ADDED 2/27/2020
+	//} //ADDED 2/27/2020
 
 	/* This is in case a subdir name is too big.  It is then displayed on
 	** two lines, the first line is the full name, the second line is
@@ -239,7 +252,7 @@ READ		tmp_entry;
 			else {
 				printf("%s",subdir);
 				sub_dirs_indents[cur_depth + 1] = last_indent = strlen(subdir)+1;
-				if (floating || strlen(subdir) < MAX_COL_WIDTH - 4) 
+				if (floating || strlen(subdir) < MAX_COL_WIDTH - 4)
 					printf(" ");
 			}
 			indented = TRUE;
@@ -314,10 +327,10 @@ READ		tmp_entry;
 			file = &tmp_RD->entry;
 			tmp_RD = tmp_RD->fptr;
 #else
-		
+
 		for (file = readdir(dp); file != NULL; file = readdir(dp)) {
 #endif
-			if (strcmp(NAME(*file), "..") != SAME) 
+			if (strcmp(NAME(*file), "..") != SAME)
 				get_data(NAME(*file),FALSE);
 		}
 
@@ -360,7 +373,7 @@ READ		tmp_entry;
 		rewinddir(dp);
 #endif
 	}
-	
+
 /* go down into the subdirectory */
 
 #ifdef	MEMORY_BASED
@@ -373,7 +386,7 @@ READ		tmp_entry;
 #endif
 		if ( (strcmp(NAME(*file), "..") != SAME) &&
 		     (strcmp(NAME(*file), ".") != SAME) ) {
-			if (chk_4_dir(NAME(*file))) 
+			if (chk_4_dir(NAME(*file)))
 				sub_dirs[cur_depth]--;
 			get_data(NAME(*file),TRUE);
 		}
@@ -400,7 +413,7 @@ READ		tmp_entry;
 		free(tmp_RD);
 		tmp_RD = tmp_RD->fptr;
 	}
-#endif	
+#endif
 
 	if (visual && indented) {
 		printf("\n");
@@ -437,7 +450,7 @@ char	*path;
 {
 	if (is_directory(path)) return TRUE;
 	else return FALSE;
-		
+
 } /* chk_4_dir */
 
 
@@ -466,18 +479,19 @@ char           *path;
 
  /*
   * Get the aged data on a file whose name is given.  If the file is a
-  * directory, go down into it, and get the data from all files inside. 
+  * directory, go down into it, and get the data from all files inside.
   */
 
+void
 get_data(path,cont)
 char           *path;
-int		cont;    
+int		cont;
 {
 /* struct	stat	stb; */
 int		i;
 
-	if (cont) { 
-		if (is_directory(path)) 
+	if (cont) {
+		if (is_directory(path))
 			down(path);
 	}
 	else {
@@ -485,7 +499,7 @@ int		i;
 
 		    /* Don't do it again if we've already done it once. */
 
-		if ( (h_enter(stb.st_dev, stb.st_ino) == OLD) && (!dup) )
+		if ( (h_enter(stb.st_dev, stb.st_ino) == OLD) && (!dupkevin) )
 			return;
 		inodes++;
 		sizes+= K(stb.st_size);
@@ -520,17 +534,17 @@ int	user_file_list_supplied = 0;
 						optarg++;
 					}
 					break;
-			case 'd':	dup = TRUE;
-					break;	
+			case 'd':	dupkevin = TRUE;
+					break;
 			case 'i':	cnt_inodes = TRUE;
 					break;
-			case 'o':	sort = TRUE; break;	
+			case 'o':	sort = TRUE; break;
 			case 's':	sum = TRUE;
 					break;
 			case 't':	sw_summary = TRUE;
 					break;
 			case 'q':	quick = TRUE;
-					dup = FALSE;
+					dupkevin = FALSE;
 					sum = FALSE;
 					cnt_inodes = FALSE;
 					break;
@@ -542,7 +556,7 @@ int	user_file_list_supplied = 0;
 		}
 		if (err) {
 			fprintf(stderr,"%s: [ -d ] [ -h # ] [ -i ] [ -o ] [ -s ] [ -q ] [ -v ] [ -V ]\n",Program);
-			fprintf(stderr,"	-d	count duplicate inodes\n");
+			fprintf(stderr,"	-d	count dupkevinlicate inodes\n");
 			fprintf(stderr,"	-f	floating column widths\n");
 			fprintf(stderr,"	-h #	height of tree to look at\n");
 			fprintf(stderr,"	-i	count inodes\n");
@@ -555,7 +569,7 @@ int	user_file_list_supplied = 0;
 			fprintf(stderr,"		(2 Vs shows specified options)\n");
 			exit(-1);
 		}
-	
+
 	}
 
 	if (version > 0 ) {
@@ -568,7 +582,7 @@ int	user_file_list_supplied = 0;
 
 		if (version>1) {
 			printf("Tree height:	%d\n",depth);
-			if (dup) printf("Include duplicate inodes\n");
+			if (dupkevin) printf("Include dupkevinlicate inodes\n");
 			if (cnt_inodes) printf("Count inodes\n");
 			if (sum) printf("Include unseen subdirectories in totals\n");
 			if (sw_summary) printf("Print totals at end\n");
@@ -577,7 +591,7 @@ int	user_file_list_supplied = 0;
 			if (sort) printf("Sort directories before processing\n");
 		}
 	}
-	
+
     /* If user didn't specify targets, inspect current directory. */
 
 	if (optind >= argc) {
@@ -599,7 +613,7 @@ int	user_file_list_supplied = 0;
 		sub_dirs[i] = 0;
 		sub_dirs_indents[i] = 0;
 	}
-		
+
     /* Inspect each argument */
 	for (i = optind; i < argc || (!user_file_list_supplied && i == argc); i++) {
 		cur_depth = inodes = sizes = 0;
@@ -615,7 +629,7 @@ int	user_file_list_supplied = 0;
 		printf("\n\nTotal space used: %ld\n",total_sizes);
 		if (cnt_inodes) printf("Total inodes: %d\n",inodes);
 	}
-	
+
 #ifdef HSTATS
 	fflush(stdout);
 	h_stats();
