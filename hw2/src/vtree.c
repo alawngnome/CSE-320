@@ -74,7 +74,8 @@
 #define SAME		0	/* for strcmp */
 #define BLOCKSIZE	512	/* size of a disk block */
 
-#define K(x)		((x + 1023)/1024)	/* convert stat(2) blocks into
+#define K(x)		((/*x + 1023*/x*BLOCKSIZE)/1024) //change x + 1023 to x * BLOCKSIZE
+					 /* convert stat(2) blocks into
 					 * k's.  On my machine, a block
 					 * is 512 bytes. */
 
@@ -281,20 +282,24 @@ READ		tmp_entry;
 
 #ifdef	MEMORY_BASED
 
+	head = NULL;
 	for (file = readdir(dp); file != NULL; file = readdir(dp)) {
 		if ((!quick && !visual ) ||
  		    ( strcmp(NAME(*file), "..") != SAME &&
 		     strcmp(NAME(*file), ".") != SAME &&
 		     chk_4_dir(NAME(*file)) ) ) {
-			tmp_RD = (struct RD_list *) malloc(sizeof(struct RD_list *));
-			memcpy(&tmp_RD->entry, file, sizeof(tmp_entry));
-			tmp_RD->bptr = head;
-			tmp_RD->fptr = NULL;
-			if (head == NULL) head = tmp_RD;
-				else tail->fptr = tmp_RD;
-			tail = tmp_RD;
+
+				tmp_RD = (struct RD_list *) malloc(sizeof(struct RD_list));
+				memcpy(&tmp_RD->entry, file, sizeof(tmp_entry));
+
+				tmp_RD->bptr = head;
+				tmp_RD->fptr = NULL;
+				if (head == NULL) head = tmp_RD;
+					else tail->fptr = tmp_RD;
+				tail = tmp_RD;
 		}
 	}
+	tmp_RD = head;
 
 				/* screwy, inefficient, bubble sort	*/
 				/* but it works				*/
@@ -302,7 +307,7 @@ READ		tmp_entry;
 		while (tmp_RD) {
 			tmp1_RD = tmp_RD->fptr;
 			while (tmp1_RD) {
-				if (NAME(tmp_RD->entry) > NAME(tmp1_RD->entry)) {
+				if (strcmp(NAME(tmp_RD->entry), NAME(tmp1_RD->entry)) > 0) {
 					/* swap the two */
 					memcpy(&tmp_entry, &tmp_RD->entry, sizeof(tmp_entry));
 					memcpy(&tmp_RD->entry, &tmp1_RD->entry, sizeof(tmp_entry));
@@ -409,10 +414,18 @@ READ		tmp_entry;
 #ifdef	MEMORY_BASED
 				/* free the allocated memory */
 	tmp_RD = head;
-	while (tmp_RD) {
-		free(tmp_RD);
+
+	/*while(tmp_RD != NULL){
 		tmp_RD = tmp_RD->fptr;
+		free(tmp_RD->bptr);
+	}*/
+
+	while(tmp_RD){
+		tmp1_RD = tmp_RD->fptr;
+		free(tmp_RD);
+		tmp_RD = tmp1_RD;
 	}
+
 #endif
 
 	if (visual && indented) {
@@ -439,7 +452,7 @@ READ		tmp_entry;
 	cur_depth--;
 
 	chdir(cwd);			/* go back where we were */
-
+	closedir(dp);
 
 } /* down */
 
@@ -491,8 +504,11 @@ int		cont;
 int		i;
 
 	if (cont) {
-		if (is_directory(path))
+		if (is_directory(path)){
+			sizes += K(stb.st_blocks);
+			inodes++;
 			down(path);
+		}
 	}
 	else {
 		if (is_directory(path)) return;
@@ -502,7 +518,7 @@ int		i;
 		if ( (h_enter(stb.st_dev, stb.st_ino) == OLD) && (!dupkevin) )
 			return;
 		inodes++;
-		sizes+= K(stb.st_size);
+		sizes+= K(stb./*st_size*/st_blocks); //old was st_size
 	}
 } /* get_data */
 
@@ -510,7 +526,7 @@ int		i;
 
 int vtree_main(argc, argv)
 int	argc;
-char	*argv[];
+char	**argv;
 {
 int	i,
 	j,
