@@ -65,6 +65,7 @@
 
 #include <unistd.h>
 #include <stdlib.h>
+#include <getopt.h>
 
 
 #ifdef	SYS_III
@@ -538,7 +539,21 @@ int	user_file_list_supplied = 0;
 
     /* Pick up options from command line */
 
-	while ((option = getopt(argc, argv, "dfh:iostqvV")) != EOF) {
+	static struct option long_options[] = {
+		{"duplicates", no_argument, 0, 'd'},
+		{"floating-column-widths", no_argument, 0, 'f'},
+		{"height", required_argument, 0, 'h'},
+		{"inodes", no_argument, 0, 'i'},
+		{"sort-directories", no_argument, 0, 'o'},
+		{"totals", no_argument, 0, 't'},
+		{"quick-display", no_argument, 0, 'q'},
+		{"visual-display", no_argument, 0 , 'v'},
+		{"version", no_argument, 0, 'V'},
+		{"no-follow-symlinks", no_argument, 0, 'l'},
+		{0,0,0,0}
+	};
+
+	while ((option = getopt_long(argc, argv, "dfh:iostqvVl", long_options, NULL)) != EOF) {
 		switch (option) {
 			case 'f':	floating = TRUE; break;
 			case 'h':	depth = atoi(optarg);
@@ -568,15 +583,33 @@ int	user_file_list_supplied = 0;
 					break;
 			case 'V':	version++;
 					break;
+#ifdef LSTAT
+			case 'l': sw_follow_links = 0;
+					break;
+#endif
 			default:	err = TRUE;
 		}
 		if (err) {
-			fprintf(stderr,"%s: [ -d ] [ -h # ] [ -i ] [ -o ] [ -s ] [ -q ] [ -v ] [ -V ]\n",Program);
+
+			//fprintf(stderr,"%s: [ -d ] [ -h # ] [ -i ] [ -l ] [ -o ] [ -s ] [ -q ] [ -v ] [ -V ]\n",Program);
+			fprintf(stderr,"%s: [ -d ] [ -h # ] [ -i ] ", Program);
+#ifdef LSTAT
+			fprintf(stderr, "[ -l ] ");
+#endif
+#ifdef MEMORY_BASED
+			fprintf(stderr, "[ -o ] ");
+#endif
+			fprintf(stderr, "[ -s ] [ -q ] [ -v ] [ -V ]\n");
 			fprintf(stderr,"	-d	count dupkevinlicate inodes\n");
 			fprintf(stderr,"	-f	floating column widths\n");
 			fprintf(stderr,"	-h #	height of tree to look at\n");
 			fprintf(stderr,"	-i	count inodes\n");
+#ifdef LSTAT
+			fprintf(stderr,"	-l  cause the program not to follow symbolic links if encountered")
+#endif
+#ifdef MEMORY_BASED
 			fprintf(stderr,"	-o	sort directories before processing\n");
+#endif
 			fprintf(stderr,"	-s	include subdirectories not shown due to -h option\n");
 			fprintf(stderr,"	-t	totals at the end\n");
 			fprintf(stderr,"	-q	quick display, no counts\n");
