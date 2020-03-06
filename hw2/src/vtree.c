@@ -569,7 +569,14 @@ int	user_file_list_supplied = 0;
 					break;
 			case 'i':	cnt_inodes = TRUE;
 					break;
-			case 'o':	sort = TRUE; break;
+			case 'o':
+#ifdef MEMORY_BASED
+			sort = TRUE;
+#else
+			fprintf(stderr, "%s: invalid option -- 'o'\n", Program);
+			err = TRUE;
+#endif
+			break;
 			case 's':	sum = TRUE;
 					break;
 			case 't':	sw_summary = TRUE;
@@ -583,10 +590,16 @@ int	user_file_list_supplied = 0;
 					break;
 			case 'V':	version++;
 					break;
+			case 'l':
 #ifdef LSTAT
-			case 'l': sw_follow_links = 0;
-					break;
+			sw_follow_links = 0;
+					//break;
+#else
+			fprintf(stderr, "%s: invalid option -- 'l'\n", Program);
+			err = TRUE;
 #endif
+			break;
+
 			default:	err = TRUE;
 		}
 		if (err) {
@@ -600,7 +613,7 @@ int	user_file_list_supplied = 0;
 			fprintf(stderr, "[ -o ] ");
 #endif
 			fprintf(stderr, "[ -s ] [ -q ] [ -v ] [ -V ]\n");
-			fprintf(stderr,"	-d	count dupkevinlicate inodes\n");
+			fprintf(stderr,"	-d	count duplicate inodes\n");
 			fprintf(stderr,"	-f	floating column widths\n");
 			fprintf(stderr,"	-h #	height of tree to look at\n");
 			fprintf(stderr,"	-i	count inodes\n");
