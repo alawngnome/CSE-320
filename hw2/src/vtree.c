@@ -618,7 +618,7 @@ int	user_file_list_supplied = 0;
 			fprintf(stderr,"	-h #	height of tree to look at\n");
 			fprintf(stderr,"	-i	count inodes\n");
 #ifdef LSTAT
-			fprintf(stderr,"	-l  cause the program not to follow symbolic links if encountered")
+			fprintf(stderr,"	-l  	cause the program not to follow symbolic links if encountered\n");
 #endif
 #ifdef MEMORY_BASED
 			fprintf(stderr,"	-o	sort directories before processing\n");
