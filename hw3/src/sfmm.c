@@ -20,7 +20,7 @@ void malloc_initialize_heap() {
     new_prolouge->header|=3; //sets the two LSBs to be 1 and 1
 
 
-    heap_pointer += 64; //skipping 7 rows (sf_block size(8 rows) - 1 for prev_footer)
+    heap_pointer += 64; //skipping 8 rows (size of prologue)
     struct sf_block *new_wilderness = (sf_block *) heap_pointer;
     new_wilderness->header = 3968;
     new_wilderness->header |= 2;
@@ -29,7 +29,7 @@ void malloc_initialize_heap() {
 
     heap_pointer = (char *)sf_mem_end() - 16; //making space for the epilogue
     struct sf_block *new_epilouge = (sf_block *) heap_pointer;
-    new_epilouge->header = 1;
+    new_epilouge->header = 1; //size of 8 + alloc bit of 1. Initialize prv_alloc to be 0
     new_epilouge->prev_footer = new_wilderness->header;
 
     for(int i = 0; i < NUM_FREE_LISTS-1; i++) { //initialize free lists in the array
@@ -72,50 +72,59 @@ int malloc_find_start(size_t size){
 /*HELPER METHOD FOR malloc_split_block - finds and inserts back a free block into the segregated free lists
 */
 void malloc_split_insert(struct sf_block *block) {
-    int index = malloc_find_start(block->header>>2); //find the array index based off the blocksize
-    struct sf_block block_pointer = sf_free_list_heads[index]; //gets the head of of the list
-    if(block_pointer.body.links.next == &block_pointer &&
-    block_pointer.body.links.prev == &block_pointer) { //if the list is empty
-        block_pointer.body.links.next = block;
-        block_pointer.body.links.prev = block;
+
+    int index = malloc_find_start(block->header|~3); //find the array index based off the blocksize
+    struct sf_block *block_pointer = &sf_free_list_heads[index]; //gets the head of of the list
+    if(block_pointer->body.links.next == block_pointer &&
+    block_pointer->body.links.prev == block_pointer) { //if the list is empty
+        block_pointer->body.links.next = block;
+        block_pointer->body.links.prev = block;
+        block->body.links.next = block_pointer;
+        block->body.links.prev = block_pointer;
         return;
     }
     //insert to the head of the free list
-    struct sf_block *prev_temp = block_pointer.body.links.next->body.links.prev;
-    block_pointer.body.links.next->body.links.prev = block;
-    block->body.links.next = block_pointer.body.links.next;
+    struct sf_block *prev_temp = block_pointer->body.links.next->body.links.prev;
+    block_pointer->body.links.next->body.links.prev = block;
+    block->body.links.next = block_pointer->body.links.next;
     block->body.links.prev = prev_temp;
     prev_temp->body.links.next = block;
 
 }
 
-
-/* HELPER METHOD - splits a new free block of size length off an original free block
+/* HELPER METHOD - splits a new free block of size length off an original free block in the heap
 */
-void malloc_split_block(int size, struct sf_block *original_block, int is_wilderness) {
-    if(size < 64)
-        return;
+struct sf_block *malloc_split_block(int size, struct sf_block *original_block, int is_wilderness) {
+    if(original_block->header - size < 64) //if splitting the size will create splinters
+        size = original_block->header|~3; //use the entire original_block
+
     //remove original block from free_list - we will reallocate it once blocksize changes
     struct sf_block *prev_temp = original_block->body.links.prev;
     original_block->body.links.prev->body.links.next = original_block->body.links.next;
     original_block->body.links.next->body.links.prev = prev_temp;
-    //setting prev and next links
-    struct sf_block new_block;
-    new_block.body.links.prev = original_block->body.links.prev;
-    new_block.body.links.next = original_block;
-    *original_block->body.links.prev = new_block;
-    //decreasing size of original block
-    original_block->header = original_block->header - size;
-    //increasing size of new block
-    new_block.header = (size)|(original_block->header&1<<1); //prev_alloc needs the alloc bit of the previous block in its prv_alloc bit
-
-    //insert the new block
-    malloc_split_insert(&new_block);
-    //check if splitting from a wilderness blcok
-    if(is_wilderness)
+    //original block now has size in header and setting it to be allocated
+    original_block->header = (size)|1; //alloc bit set to 1
+    //creating the new block size based off the remainder;
+    char *heap_pointer = (char *)original_block + size - 8; //creates a memory address for the new upper block to be placed
+    struct sf_block *new_block = (struct sf_block *) heap_pointer; //creates the new upper block
+    new_block->header = (original_block->header - size)|2; //setting header with prv_alloc bit of 1 - original_block will be allocated
+    //setting the prev_footer of the new_block
+    heap_pointer = (char *)original_block + (original_block->header-size) - 8; //going past the size of the new_block
+    struct sf_block *prev_footer_block = (struct sf_block *) heap_pointer;
+    prev_footer_block->prev_footer = new_block->header;
+    //insert the new block into a free list
+    malloc_split_insert(new_block);
+    //check if splitting from a wilderness block, elsewise put original_block into a free list
+    if(is_wilderness){
         sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next = original_block;
+        sf_free_list_heads[NUM_FREE_LISTS-1].body.links.prev = original_block;
+        original_block->body.links.next = &sf_free_list_heads[NUM_FREE_LISTS-1];
+        original_block->body.links.prev = &sf_free_list_heads[NUM_FREE_LISTS-1];
+    }
     else
-        malloc_split_insert(original_block);
+        malloc_split_insert(original_block); //re-insert with new block_size
+
+    return new_block;
 }
 
 /* HELPER FUNCTION - first-fit search for a free block, starting at the malloc_find_start position free list
@@ -123,19 +132,22 @@ void malloc_split_block(int size, struct sf_block *original_block, int is_wilder
  * If wilderness too small or doesn't exist, use sf_mem_grow
  * If cannot allocate block, set sf_errno to ENOMEM and malloc to return null
 */
-void malloc_search_insert(int size){
+struct sf_block *malloc_search_insert(int size){
 
     int start_position = malloc_find_start(size); //index of the free list to traverse through
 
-    struct sf_block block_pointer = sf_free_list_heads[start_position];
+    struct sf_block *block_pointer = &sf_free_list_heads[start_position];
 
-    if(block_pointer.body.links.next == block_pointer.body.links.prev) {
+    if(block_pointer->body.links.next == block_pointer->body.links.prev) { //if list is empty
         start_position++;
-        block_pointer = sf_free_list_heads[start_position];
-    } else {
-        //
+        block_pointer = &sf_free_list_heads[start_position]; //move to next free list in array
+    } else { //if we can traverse through the list
+        block_pointer = block_pointer->body.links.next; //start by moving off the sentinel node
+        while(block_pointer != &sf_free_list_heads[start_position]){ //loop until we hit sentinel node again
+            if((block_pointer->header|~3) >= size) //if we find a suitably large block
+                return malloc_split_block(size, block_pointer, 0);
+        }
     }
-
 }
 
 
@@ -151,9 +163,8 @@ void *sf_malloc(size_t size) {
     if(sf_mem_start() == sf_mem_end()) { //if first malloc call
         malloc_initialize_heap();
     }
-    sf_show_heap();
-    //malloc_search_insert(size);
-    printf("so sf_show_heap is fine\n");
+    //sf_show_heap();
+    return malloc_search_insert(size);
     return NULL;
 }
 
