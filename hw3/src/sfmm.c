@@ -15,28 +15,22 @@
 void malloc_initialize_heap() {
     char *heap_pointer = (char *) sf_mem_grow(); //create the first page of the memory
     heap_pointer += 48; //skip 6 rows in the very beginning of the heap(padding-1 for prev_footer)
-    struct sf_block *new_prolouge;
+    struct sf_block *new_prolouge = (sf_block *) heap_pointer;
     new_prolouge->header = 64;//(64>>2); //adds block size to its space
     new_prolouge->header|=3; //sets the two LSBs to be 1 and 1
-    sf_block *b_heap_pointer = (sf_block *) heap_pointer;
-    //b_heap_pointer = new_prolouge;
 
 
     heap_pointer += 64; //skipping 7 rows (sf_block size(8 rows) - 1 for prev_footer)
-    struct sf_block *new_wilderness;
+    struct sf_block *new_wilderness = (sf_block *) heap_pointer;
     new_wilderness->header = 3968;
     new_wilderness->header |= 2;
     new_wilderness->prev_footer = new_prolouge->header;
-    b_heap_pointer = (sf_block *) heap_pointer;
-    b_heap_pointer = new_wilderness;
 
 
     heap_pointer = (char *)sf_mem_end() - 16; //making space for the epilogue
-    struct sf_block *new_epilouge;
+    struct sf_block *new_epilouge = (sf_block *) heap_pointer;
     new_epilouge->header = 1;
     new_epilouge->prev_footer = new_wilderness->header;
-    b_heap_pointer = (sf_block *) heap_pointer;
-    b_heap_pointer = new_epilouge;
 
     for(int i = 0; i < NUM_FREE_LISTS-1; i++) { //initialize free lists in the array
         sf_free_list_heads[i].body.links.next = &sf_free_list_heads[i];
