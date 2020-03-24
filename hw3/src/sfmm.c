@@ -120,8 +120,6 @@ struct sf_block *malloc_split_block(size_t size, struct sf_block *original_block
         heap_pointer += (temp_original_blocksize-size); //going past the size of the new_block
         struct sf_block *prev_footer_block = (struct sf_block *) heap_pointer;
         prev_footer_block->prev_footer = new_block->header;
-        //insert the original block into a free list
-        malloc_split_insert(original_block);
         //check if splitting from a wilderness block, elsewise put original_block into a free list
         if(is_wilderness){
             sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next = new_block;
@@ -211,8 +209,12 @@ void *sf_malloc(size_t size) {
         malloc_initialize_heap();
     }
     //return payload of the allocated type
-    return (void *)(malloc_search_insert(size)->body.payload);
-    sf_show_heap();
+    //return malloc_search_insert(size);
+    struct sf_block *allocated_block = malloc_search_insert(size);
+    if(allocated_block == NULL) {
+        return NULL;
+    }
+    return (void *)(allocated_block->body.payload);
 }
 
 void sf_free(void *pp) {
