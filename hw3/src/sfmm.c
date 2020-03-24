@@ -92,6 +92,13 @@ void malloc_split_insert(struct sf_block *block) {
     prev_temp->body.links.next = block;
 
 }
+/*HELPER METHOD - Removes the current block from the linked-list
+*/
+void malloc_remove_block(struct sf_block *original_block){
+    struct sf_block *prev_temp = original_block->body.links.prev;
+    original_block->body.links.prev->body.links.next = original_block->body.links.next;
+    original_block->body.links.next->body.links.prev = prev_temp;
+}
 
 /* HELPER METHOD - splits a new free block of size length off an original free block in the heap
 */
@@ -102,9 +109,7 @@ struct sf_block *malloc_split_block(size_t size, struct sf_block *original_block
         entire_block_used = 1;
     }
     //remove original block from free_list - we will reallocate it once blocksize changes
-    struct sf_block *prev_temp = original_block->body.links.prev;
-    original_block->body.links.prev->body.links.next = original_block->body.links.next;
-    original_block->body.links.next->body.links.prev = prev_temp;
+    malloc_remove_block(original_block);
     //original block now has size in header and setting it to be allocated
     size_t temp_original_header = original_block->header;
     size_t temp_original_blocksize = original_block->header&~3;
@@ -215,27 +220,89 @@ void *sf_malloc(size_t size) {
     return (void *)(allocated_block->body.payload);
 }
 
+/*HELPER FUNCTION - Attempts to coalesce a freed block and insert it back into the free list
+*/
+void free_coalesce(struct sf_block *current_block) {
+    //getting the next and prev blocks
+    char *block_pointer = (char *)current_block + (current_block->header&~3);
+    struct sf_block *next_block = (struct sf_block *)block_pointer;
+    if(current_block->header&2) {
+        char *block_pointer = (char *)current_block - (current_block->prev_footer&~3);
+        struct sf_block *prev_block = (struct sf_block *)block_pointer;
+    }
+    //if both next and prev blocks are allocated
+    if(prev_block->header&1 && next_block->header&1){
+        //do nothing
+        malloc_split_insert(current_block);
+        return;
+    }
+    //if prev is allocated but next block is free
+    else if(prev_block->header&1 && !next_block->header&1) {
+        //set header of current block and footer of next block is now combined size
+        size_t new_header = ((current_block->header&~3) + (next_block->header&~3))|2; //prv_alloc = 1, alloc = 0
+        current_block->header = new_header;
+        block_pointer = (char *)current_block + (new_header&~3);
+        struct sf_block *new_next_block = (struct sf_block *) block_pointer;
+        new_next_block->prev_footer = new_header;
+        malloc_remove_block(current_block);
+        malloc_remove_block(next_block);
+        malloc_split_insert(current_block);
+        return;
+    }
+    //if prev is free but next block is allocated
+    else if(!prev_block->header&1 && next_block->header&1) {
+        size_t new_header = ((current_block->header&~3) + (prev_block->header&~3))
+        |(prev_block->header&2); //prv_alloc = prev_block's prv_alloc bit, alloc = 0
+        prev_block->header = new_header;
+        block_pointer = (char *)prev_block + (new_header&~3);
+        struct sf_block *new_next_block = (struct sf_block *) block_pointer;
+        new_next_block->prev_footer = new_header;
+        malloc_remove_block(prev_block);
+        malloc_remove_block(current_block);
+        malloc_split_insert(prev_block);
+        return;
+    }
+    //if both next and prev are free
+    else if(!prev_block->header&1 && !next_block->header&1) {
+        size_t new_header = ((prev_block->header&~3) + (current_block->header&~3) + (next_block->header&~3))
+        |(prev_block->header&2); //prv_alloc = prev_block's prv_alloc bit, alloc = 0
+        prev_block->header = new_header;
+        block_pointer = (char *)prev_block + (new_header&~3);
+        struct sf_block *new_next_block = (struct sf_block *) block_pointer;
+        new_next_block->prev_footer = new_header;
+        malloc_remove_block(prev_block);
+        malloc_remove_block(current_block);
+        malloc_remove_block(next_block);
+        malloc_split_insert(prev_block);
+        return;
+    }
+}
+
 void sf_free(void *pp) {
     if(pp == NULL) //if pointer is NULL
         abort();
-    if(*((size_t *)pp) % 64 != 0) //if pointer is not aligned to a 64-bit boundary
+    if(((size_t)pp) % 64 != 0) //if pointer is not aligned to a 64-bit boundary
         abort();
     //getting pointer to block
     char *block_position = (char *)pp - 16;
     struct sf_block *arg_block = (struct sf_block *)block_position;
     if((arg_block->header&1) == 0) //if allocated bit in header is 0
         abort();
-    if((size_t *)arg_block->header < (size_t *)sf_mem_start()+112) //header address is before end of prologue(48+64 bytes from start)
+    //if((size_t)&arg_block->header < (size_t)sf_mem_start()+112) //header address is before end of prologue(48+64 bytes from start)
+    if(pp < sf_mem_start()+112)
         abort();
-    //geting pointer to following block for prev_footer
+    //getting pointer to following block for prev_footer
     block_position += arg_block->header&~3;
-    struct sf_block *prev_footer_block = (struct sf_block *)block_position;
-    if((size_t *)prev_footer_block->prev_footer > (size_t *)sf_mem_end()-8) //prev_footer address is after start of epilogue
+    //struct sf_block *prev_footer_block = (struct sf_block *)block_position;
+    //if((size_t)&prev_footer_block->prev_footer > (size_t)sf_mem_end()-8) //prev_footer address is after start of epilogue
+    if(pp > sf_mem_end()-8)
         abort();
+    //getting pointer to previous block for header
     if((arg_block->header&2) == 0 && (arg_block->prev_footer&1) != 0) //prv_alloc bit is 0 but alloc bit of previous block is not 0
         abort();
-
-    //deez nuts
+    //free alloc bit
+    arg_block->header = arg_block->header&~1;
+    free_coalesce(arg_block);
     return;
 }
 
