@@ -4,12 +4,8 @@
 int main(int argc, char const *argv[]) {
     sf_mem_init();
 
-    //double* ptr = sf_malloc(sizeof(double));
-    //*ptr = 320320320e-320;
-
-    void *ptr = sf_malloc(PAGE_SZ << 16);
-
-    //printf("%f\n", *ptr);
+    double* ptr = sf_malloc(sizeof(double));
+    *ptr = 320320320e-320;
 
     sf_show_heap();
 

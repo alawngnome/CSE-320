@@ -209,15 +209,33 @@ void *sf_malloc(size_t size) {
         malloc_initialize_heap();
     }
     //return payload of the allocated type
-    //return malloc_search_insert(size);
     struct sf_block *allocated_block = malloc_search_insert(size);
-    if(allocated_block == NULL) {
+    if(allocated_block == NULL) //if allocated_block is multiple of 64
         return NULL;
-    }
     return (void *)(allocated_block->body.payload);
 }
 
 void sf_free(void *pp) {
+    if(pp == NULL) //if pointer is NULL
+        abort();
+    if(*((size_t *)pp) % 64 != 0) //if pointer is not aligned to a 64-bit boundary
+        abort();
+    //getting pointer to block
+    char *block_position = (char *)pp - 16;
+    struct sf_block *arg_block = (struct sf_block *)block_position;
+    if((arg_block->header&1) == 0) //if allocated bit in header is 0
+        abort();
+    if((size_t *)arg_block->header < (size_t *)sf_mem_start()+112) //header address is before end of prologue(48+64 bytes from start)
+        abort();
+    //geting pointer to following block for prev_footer
+    block_position += arg_block->header&~3;
+    struct sf_block *prev_footer_block = (struct sf_block *)block_position;
+    if((size_t *)prev_footer_block->prev_footer > (size_t *)sf_mem_end()-8) //prev_footer address is after start of epilogue
+        abort();
+    if((arg_block->header&2) == 0 && (arg_block->prev_footer&1) != 0) //prv_alloc bit is 0 but alloc bit of previous block is not 0
+        abort();
+
+    //deez nuts
     return;
 }
 
