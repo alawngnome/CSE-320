@@ -111,7 +111,7 @@ struct sf_block *malloc_split_block(size_t size, struct sf_block *original_block
         //creating the new block size based off the remainder;
         char *heap_pointer = ((char *)original_block) + size; //creates a memory address for the new upper block to be placed
         struct sf_block *new_block = (struct sf_block *) heap_pointer; //creates the new upper block
-        new_block->header = (temp_original_blocksize-size)|2; //setting header with prv_alloc bit of 1 - original_block will be allocated
+        new_block->header = (temp_original_blocksize-size)|2; //prv_alloc = 1, original_block will be allocated
         new_block->prev_footer = original_block->header;
         //setting the prev_footer of the new_block
         heap_pointer += (temp_original_blocksize-size); //going past the size of the new_block
