@@ -20,13 +20,11 @@ void malloc_initialize_heap() {
     new_prolouge->header = 64;//(64>>2); //adds block size to its space
     new_prolouge->header|=3; //sets the two LSBs to be 1 and 1
 
-
     heap_pointer += 64; //skipping 8 rows (size of prologue)
     struct sf_block *new_wilderness = (sf_block *) heap_pointer;
     new_wilderness->header = 3968;
     new_wilderness->header |= 2;
     new_wilderness->prev_footer = new_prolouge->header;
-
 
     heap_pointer = (char *)sf_mem_end() - 16; //making space for the epilogue
     struct sf_block *new_epilouge = (sf_block *) heap_pointer;
@@ -221,7 +219,8 @@ void free_coalesce(struct sf_block *current_block) {
 
     //if both next and prev blocks are allocated
     if(current_block->header&2 && next_block->header&1){
-        //do nothing
+        next_block->prev_footer = current_block->header; //setting prev_footer
+        next_block->header = next_block->header&~2; //setting prv_alloc block to be 0
         malloc_split_insert(current_block);
         return;
     }
@@ -234,7 +233,15 @@ void free_coalesce(struct sf_block *current_block) {
         struct sf_block *new_next_block = (struct sf_block *) block_pointer;
         new_next_block->prev_footer = new_header;
         malloc_remove_block(next_block);
-        malloc_split_insert(current_block);
+        //if wilderness block
+        if(next_block->body.links.next == &sf_free_list_heads[NUM_FREE_LISTS-1]){
+            sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next = current_block;
+            sf_free_list_heads[NUM_FREE_LISTS-1].body.links.prev = current_block;
+            current_block->body.links.next = &sf_free_list_heads[NUM_FREE_LISTS-1];
+            current_block->body.links.prev = &sf_free_list_heads[NUM_FREE_LISTS-1];
+        } else {
+            malloc_split_insert(current_block);
+        }
         return;
     }
     //if prev is free but next block is allocated
@@ -264,8 +271,16 @@ void free_coalesce(struct sf_block *current_block) {
         struct sf_block *new_next_block = (struct sf_block *) block_pointer;
         new_next_block->prev_footer = new_header;
         malloc_remove_block(prev_block);
-        malloc_remove_block(next_block);
-        malloc_split_insert(prev_block);
+        //if wilderness block
+        if(next_block->body.links.next == &sf_free_list_heads[NUM_FREE_LISTS-1]){
+            malloc_remove_block(next_block);
+            sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next = prev_block;
+            sf_free_list_heads[NUM_FREE_LISTS-1].body.links.prev = prev_block;
+            prev_block->body.links.next = &sf_free_list_heads[NUM_FREE_LISTS-1];
+            prev_block->body.links.prev = &sf_free_list_heads[NUM_FREE_LISTS-1];
+        } else {
+            malloc_split_insert(prev_block);
+        }
         return;
     }
 }
@@ -293,10 +308,8 @@ void sf_free(void *pp) {
     return;
 }
 
-struct sf_block *realloc_split(struct sf_block *client_block, size_t rsize) {
+void realloc_split(struct sf_block *client_block, size_t rsize) {
     size_t temp_original_header = client_block->header;
-    if(rsize%64) //if not already a multiple of 64
-        rsize = (rsize|63) + 1; //round up to next multiple of 64
     //creating new block based off remainder
     char *heap_pointer = ((char *)client_block) + ((client_block->header&~3) - rsize); //creates a memory address for the new upper block
     struct sf_block *new_block = (struct sf_block *) heap_pointer; //creates the new upper block
@@ -313,10 +326,7 @@ struct sf_block *realloc_split(struct sf_block *client_block, size_t rsize) {
     prev_footer_block->prev_footer = new_block->header;
     //use free to coalesce block for us
     new_block->header |= 1; //set to be allocated, free will deallocate it anyway
-    sf_free((char *)new_block->header + 16); //200 IQ play
-    //move block into free list
-    malloc_split_insert(new_block);
-    return client_block;
+    sf_free((char *)new_block + 16); //200 IQ play
 }
 
 void *sf_realloc(void *pp, size_t rsize) {
@@ -341,24 +351,25 @@ void *sf_realloc(void *pp, size_t rsize) {
         return NULL;
     }
     //if reallocating to a larger block size
-    if((client_block->header&~3) > rsize) {
+    if((client_block->header&~3) < rsize) {
         void *malloc_payload = sf_malloc(rsize);
         if(malloc_payload == NULL)
             return NULL;
-        memcpy(malloc_payload, pp, rsize - 8);
-        sf_free(client_block);
-        block_position = (char *)malloc_payload - 16;
-        struct sf_block *malloc_block = (struct sf_block *) block_position;
-        return malloc_block;
+        memcpy(malloc_payload, pp, (client_block->header&~3)-8);
+        sf_free(pp);
+        return malloc_payload;
     }
     //if reallocating to a smaller block size
     else {
+        rsize += 8; //include header for blocksize
+        if(rsize%64) //if not already a multiple of 64
+            rsize = (rsize|63) + 1; //round up to next multiple of 64
         //no splitting b/c splinter
-        if((client_block->header&~3) - rsize < 64) {
-            return client_block;
-        }
+        if((client_block->header&~3) - rsize < 64)
+            return pp;
         //splitting b/c splinter
-        return realloc_split(client_block, rsize);
+        realloc_split(client_block, rsize);
+        return pp;
     }
     return NULL;
 }
