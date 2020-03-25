@@ -76,14 +76,7 @@ void malloc_split_insert(struct sf_block *block) {
 
     int index = malloc_find_start(block->header&~3); //find the array index based off the blocksize
     struct sf_block *block_pointer = &sf_free_list_heads[index]; //gets the head of of the list
-    /*if(block_pointer->body.links.next == block_pointer &&
-    block_pointer->body.links.prev == block_pointer) { //if the list is empty
-        block_pointer->body.links.next = block;
-        block_pointer->body.links.prev = block;
-        block->body.links.next = block_pointer;
-        block->body.links.prev = block_pointer;
-        return;
-    }*/
+
     //insert to the head of the free list
     struct sf_block *prev_temp = block_pointer->body.links.next->body.links.prev;
     block_pointer->body.links.next->body.links.prev = block;
@@ -95,9 +88,8 @@ void malloc_split_insert(struct sf_block *block) {
 /*HELPER METHOD - Removes the current block from the linked-list
 */
 void malloc_remove_block(struct sf_block *original_block){
-    struct sf_block *prev_temp = original_block->body.links.prev;
     original_block->body.links.prev->body.links.next = original_block->body.links.next;
-    original_block->body.links.next->body.links.prev = prev_temp;
+    original_block->body.links.next->body.links.prev = original_block->body.links.prev;
 }
 
 /* HELPER METHOD - splits a new free block of size length off an original free block in the heap
@@ -223,34 +215,33 @@ void *sf_malloc(size_t size) {
 /*HELPER FUNCTION - Attempts to coalesce a freed block and insert it back into the free list
 */
 void free_coalesce(struct sf_block *current_block) {
-    //getting the next and prev blocks
+    //getting the next block
     char *block_pointer = (char *)current_block + (current_block->header&~3);
     struct sf_block *next_block = (struct sf_block *)block_pointer;
-    if(current_block->header&2) {
-        char *block_pointer = (char *)current_block - (current_block->prev_footer&~3);
-        struct sf_block *prev_block = (struct sf_block *)block_pointer;
-    }
+
     //if both next and prev blocks are allocated
-    if(prev_block->header&1 && next_block->header&1){
+    if(current_block->header&2 && next_block->header&1){
         //do nothing
         malloc_split_insert(current_block);
         return;
     }
     //if prev is allocated but next block is free
-    else if(prev_block->header&1 && !next_block->header&1) {
+    else if(current_block->header&2 && !(next_block->header&1)) {
         //set header of current block and footer of next block is now combined size
         size_t new_header = ((current_block->header&~3) + (next_block->header&~3))|2; //prv_alloc = 1, alloc = 0
         current_block->header = new_header;
         block_pointer = (char *)current_block + (new_header&~3);
         struct sf_block *new_next_block = (struct sf_block *) block_pointer;
         new_next_block->prev_footer = new_header;
-        malloc_remove_block(current_block);
         malloc_remove_block(next_block);
         malloc_split_insert(current_block);
         return;
     }
     //if prev is free but next block is allocated
-    else if(!prev_block->header&1 && next_block->header&1) {
+    else if(!(current_block->header&2) && next_block->header&1) {
+        char *block_pointer = (char *)current_block - (current_block->prev_footer&~3);
+        struct sf_block *prev_block = (struct sf_block *)block_pointer;
+
         size_t new_header = ((current_block->header&~3) + (prev_block->header&~3))
         |(prev_block->header&2); //prv_alloc = prev_block's prv_alloc bit, alloc = 0
         prev_block->header = new_header;
@@ -258,12 +249,14 @@ void free_coalesce(struct sf_block *current_block) {
         struct sf_block *new_next_block = (struct sf_block *) block_pointer;
         new_next_block->prev_footer = new_header;
         malloc_remove_block(prev_block);
-        malloc_remove_block(current_block);
         malloc_split_insert(prev_block);
         return;
     }
     //if both next and prev are free
-    else if(!prev_block->header&1 && !next_block->header&1) {
+    else if(!(current_block->header&2) && !(next_block->header&1)) {
+        char *block_pointer = (char *)current_block - (current_block->prev_footer&~3);
+        struct sf_block *prev_block = (struct sf_block *)block_pointer;
+
         size_t new_header = ((prev_block->header&~3) + (current_block->header&~3) + (next_block->header&~3))
         |(prev_block->header&2); //prv_alloc = prev_block's prv_alloc bit, alloc = 0
         prev_block->header = new_header;
@@ -271,7 +264,6 @@ void free_coalesce(struct sf_block *current_block) {
         struct sf_block *new_next_block = (struct sf_block *) block_pointer;
         new_next_block->prev_footer = new_header;
         malloc_remove_block(prev_block);
-        malloc_remove_block(current_block);
         malloc_remove_block(next_block);
         malloc_split_insert(prev_block);
         return;
