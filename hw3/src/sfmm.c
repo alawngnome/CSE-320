@@ -280,14 +280,9 @@ void sf_free(void *pp) {
     struct sf_block *arg_block = (struct sf_block *)block_position;
     if((arg_block->header&1) == 0) //if allocated bit in header is 0
         abort();
-    //if((size_t)&arg_block->header < (size_t)sf_mem_start()+112) //header address is before end of prologue(48+64 bytes from start)
-    if(pp < sf_mem_start()+112)
+    if(pp < sf_mem_start()+112) //pointer address is before end of prologue(48+64 bytes from start)
         abort();
-    //getting pointer to following block for prev_footer
-    block_position += arg_block->header&~3;
-    //struct sf_block *prev_footer_block = (struct sf_block *)block_position;
-    //if((size_t)&prev_footer_block->prev_footer > (size_t)sf_mem_end()-8) //prev_footer address is after start of epilogue
-    if(pp > sf_mem_end()-8)
+    if(pp > sf_mem_end()-8) //pointer address is after start of epilogue
         abort();
     //getting pointer to previous block for header
     if((arg_block->header&2) == 0 && (arg_block->prev_footer&1) != 0) //prv_alloc bit is 0 but alloc bit of previous block is not 0
@@ -298,7 +293,73 @@ void sf_free(void *pp) {
     return;
 }
 
+struct sf_block *realloc_split(struct sf_block *client_block, size_t rsize) {
+    size_t temp_original_header = client_block->header;
+    if(rsize%64) //if not already a multiple of 64
+        rsize = (rsize|63) + 1; //round up to next multiple of 64
+    //creating new block based off remainder
+    char *heap_pointer = ((char *)client_block) + ((client_block->header&~3) - rsize); //creates a memory address for the new upper block
+    struct sf_block *new_block = (struct sf_block *) heap_pointer; //creates the new upper block
+    new_block->header = (client_block->header&~3)-rsize;
+    new_block->header |= 2; //prev alloc bit = 1, b/c client block allocated
+    //creating new header for client_block
+    client_block->header = rsize|1; //alloc bit set to 1
+    client_block->header |= temp_original_header&2; //moving prv_alloc bit from old header
+    //setting footer of client block
+    new_block->prev_footer = client_block->header;
+    //setting footer of new block
+    heap_pointer += new_block->header&~3; //going past the size of the new_block
+    struct sf_block *prev_footer_block = (struct sf_block *) heap_pointer;
+    prev_footer_block->prev_footer = new_block->header;
+    //use free to coalesce block for us
+    new_block->header |= 1; //set to be allocated, free will deallocate it anyway
+    sf_free((char *)new_block->header + 16); //200 IQ play
+    //move block into free list
+    malloc_split_insert(new_block);
+    return client_block;
+}
+
 void *sf_realloc(void *pp, size_t rsize) {
+    //same suite of pointer tests as free
+    if(pp == NULL) //if pointer is NULL
+        abort();
+    if(((size_t)pp) % 64 != 0) //if pointer is not aligned to a 64-bit boundary
+        abort();
+    char *block_position = (char *)pp - 16;
+    struct sf_block *client_block = (struct sf_block *)block_position;
+    if((client_block->header&1) == 0) //if allocated bit in header is 0
+        abort();
+    if(pp < sf_mem_start()+112) //pointer address is before end of prologue(48+64 bytes from start)
+        abort();
+    if(pp > sf_mem_end()-8) //pointer address is after start of epilogue
+        abort();
+    if((client_block->header&2) == 0 && (client_block->prev_footer&1) != 0) //prv_alloc bit is 0 but alloc bit of previous block is not 0
+        abort();
+    //if pointer is valid but rsize is 0
+    if(rsize == 0){
+        free(pp);
+        return NULL;
+    }
+    //if reallocating to a larger block size
+    if((client_block->header&~3) > rsize) {
+        void *malloc_payload = sf_malloc(rsize);
+        if(malloc_payload == NULL)
+            return NULL;
+        memcpy(malloc_payload, pp, rsize - 8);
+        sf_free(client_block);
+        block_position = (char *)malloc_payload - 16;
+        struct sf_block *malloc_block = (struct sf_block *) block_position;
+        return malloc_block;
+    }
+    //if reallocating to a smaller block size
+    else {
+        //no splitting b/c splinter
+        if((client_block->header&~3) - rsize < 64) {
+            return client_block;
+        }
+        //splitting b/c splinter
+        return realloc_split(client_block, rsize);
+    }
     return NULL;
 }
 
