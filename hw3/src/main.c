@@ -11,12 +11,8 @@ int main(int argc, char const *argv[]) {
     sf_free(ptr);
 
     sf_show_heap();*/
-    void *x = sf_malloc(sizeof(int) * 20);
-    printf("\n\n");
-    void *y = sf_realloc(x, sizeof(int) * 16);
-    if(y == NULL){
-        //wow
-    }
+    void *x =sf_malloc(200);
+    sf_realloc(x, 350);
     sf_show_heap();
 
     sf_mem_fini();

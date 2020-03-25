@@ -300,7 +300,7 @@ void sf_free(void *pp) {
     if(pp > sf_mem_end()-8) //pointer address is after start of epilogue
         abort();
     //getting pointer to previous block for header
-    if((arg_block->header&2) == 0 && (arg_block->prev_footer&1) != 0) //prv_alloc bit is 0 but alloc bit of previous block is not 0
+    if((arg_block->header&2) == 0 && (arg_block->prev_footer&1) != 0) //prv_alloc = 0 but alloc bit of previous block != 0
         abort();
     //free alloc bit
     arg_block->header = arg_block->header&~1;
@@ -311,7 +311,7 @@ void sf_free(void *pp) {
 void realloc_split(struct sf_block *client_block, size_t rsize) {
     size_t temp_original_header = client_block->header;
     //creating new block based off remainder
-    char *heap_pointer = ((char *)client_block) + ((client_block->header&~3) - rsize); //creates a memory address for the new upper block
+    char *heap_pointer = ((char *)client_block) + ((client_block->header&~3) - rsize);
     struct sf_block *new_block = (struct sf_block *) heap_pointer; //creates the new upper block
     new_block->header = (client_block->header&~3)-rsize;
     new_block->header |= 2; //prev alloc bit = 1, b/c client block allocated
@@ -343,13 +343,14 @@ void *sf_realloc(void *pp, size_t rsize) {
         abort();
     if(pp > sf_mem_end()-8) //pointer address is after start of epilogue
         abort();
-    if((client_block->header&2) == 0 && (client_block->prev_footer&1) != 0) //prv_alloc bit is 0 but alloc bit of previous block is not 0
+    if((client_block->header&2) == 0 && (client_block->prev_footer&1) != 0) //prv_alloc = 0 but alloc bit of previous block != 0
         abort();
     //if pointer is valid but rsize is 0
     if(rsize == 0){
         free(pp);
         return NULL;
     }
+    rsize += 8; //include header for blocksize
     //if reallocating to a larger block size
     if((client_block->header&~3) < rsize) {
         void *malloc_payload = sf_malloc(rsize);
@@ -361,7 +362,6 @@ void *sf_realloc(void *pp, size_t rsize) {
     }
     //if reallocating to a smaller block size
     else {
-        rsize += 8; //include header for blocksize
         if(rsize%64) //if not already a multiple of 64
             rsize = (rsize|63) + 1; //round up to next multiple of 64
         //no splitting b/c splinter
