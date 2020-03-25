@@ -162,7 +162,7 @@ struct sf_block *malloc_search_insert(int size){
     else if(size > (sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next->header&~3)){
         //the wilderness block is too small
     } else { //if space can be allocated from the wilderness
-        return malloc_split_block(size, sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next, 1); //body.links.next leads to wilderness block
+        return malloc_split_block(size, sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next, 1);
     }
     //last option is to call sf_mem_grow
     //saving the epilogue header to move to the new end
