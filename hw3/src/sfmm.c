@@ -375,5 +375,43 @@ void *sf_realloc(void *pp, size_t rsize) {
 }
 
 void *sf_memalign(size_t size, size_t align) {
+    //checking align is at least minimum block size
+    if(align < 64) {
+        sf_errno = EINVAL;
+        return NULL;
+    }
+    //checking that align is a multiple of 2
+    size_t temp_align = align;
+    if(temp_align % 2) {
+        sf_errno = EINVAL;
+        return NULL;
+    }
+    while(temp_align != 1) {
+        if(temp_align % 2){
+            sf_errno = EINVAL;
+            return NULL;
+        }
+        temp_align /= 2;
+    }
+    //append size
+    size_t blocksize = size + 64 + align; //blocksize of the block we intially allocate
+    char * start_address = (char *) sf_malloc(blocksize); //adding header size, min size, align
+    //check if we can realloc to a slightly smaller size
+    size_t new_block_size = align; //satisifies minimum distance requirement
+    while(1){
+        if((size_t)start_address % align == 0) { //alignment satisfied
+            break;
+        }
+        if(((size_t)start_address + new_block_size) % align == 0){ //satisfies the alignment requirement
+            if(blocksize - new_block_size > size) //has sufficient space to hold size payload
+                start_address = sf_realloc(start_address, new_block_size);
+                break;
+        }
+        new_block_size++;
+    }
+    start_address -= 16;
+    struct sf_block *old_block = (struct sf_block *) start_address;
+    size_t new_blocksize = (old_block->header&~3) - size;
+    realloc_split(old_block, new_blocksize);
     return NULL;
 }
