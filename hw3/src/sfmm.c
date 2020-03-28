@@ -307,7 +307,8 @@ void sf_free(void *pp) {
     free_coalesce(arg_block);
     return;
 }
-
+/*HELPER METHOD - takes in a current block and resizes it down to a new size
+*/
 void realloc_split(struct sf_block *client_block, size_t rsize) {
     size_t temp_original_header = client_block->header;
     //creating new block based off remainder
@@ -393,25 +394,45 @@ void *sf_memalign(size_t size, size_t align) {
         }
         temp_align /= 2;
     }
+    if(size == 0)
+        return NULL;
     //append size
-    size_t blocksize = size + 64 + align; //blocksize of the block we intially allocate
-    char * start_address = (char *) sf_malloc(blocksize); //adding header size, min size, align
+    char *start_address = (char *)sf_malloc(size + 64 + align); //adding header size, min size, align
     //check if we can realloc to a slightly smaller size
-    size_t new_block_size = align; //satisifies minimum distance requirement
+    size_t blocksize_counter = 64; //satisifies minimum distance requirement
+    struct sf_block *old_block = (struct sf_block *) (start_address - 16); //gets the block of the original
+    size_t blocksize = old_block->header&~3;
     while(1){
         if((size_t)start_address % align == 0) { //alignment satisfied
-            break;
+            break; //skip loop
         }
-        if(((size_t)start_address + new_block_size) % align == 0){ //satisfies the alignment requirement
-            if(blocksize - new_block_size > size) //has sufficient space to hold size payload
-                start_address = sf_realloc(start_address, new_block_size);
-                break;
+        if(((size_t)start_address + blocksize_counter) % align == 0){ //new block address satisfies the alignment requirement
+            if(blocksize - blocksize_counter > size){ //has sufficient space to hold size payload
+                old_block->header = blocksize_counter|(old_block->header&2)|1; //copying over the prv_alloc bit of the old header
+                //splitting from the beginning of the block
+                //setting up new_block
+                char *new_address = start_address + blocksize_counter - 16;
+                struct sf_block *new_block = (struct sf_block *) new_address;
+                new_block->header = (blocksize - blocksize_counter)|3; //alloc bit = 1, alloc bit = 1
+                new_block->prev_footer = old_block->header;
+                //setting up prev_footer of new_block
+                new_address += new_block->header&~3;
+                struct sf_block *prev_footer_block = (struct sf_block *)new_address;
+                prev_footer_block->prev_footer = new_block->header;
+                //freeing old block
+                sf_free(start_address);
+                //splitting new_block, first round size to multiple of 64
+                if(size % 64)
+                    size = (size|63) + 1;
+                realloc_split(new_block, size);
+                return (void *)(new_block->body.payload);
+            }
         }
-        new_block_size++;
+        blocksize_counter++;
     }
-    start_address -= 16;
-    struct sf_block *old_block = (struct sf_block *) start_address;
-    size_t new_blocksize = (old_block->header&~3) - size;
-    realloc_split(old_block, new_blocksize);
-    return NULL;
+    //resize size
+    if(size % 64)
+        size = (size|63) + 1;
+    realloc_split(old_block, size);
+    return (void *)(old_block->body.payload);
 }

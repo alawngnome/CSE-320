@@ -11,8 +11,10 @@ int main(int argc, char const *argv[]) {
     sf_free(ptr);
 
     sf_show_heap();*/
-    void *x =sf_malloc(200);
-    sf_realloc(x, 350);
+    /*double *ptr = sf_malloc(300 + 64 + 512);
+    *ptr = 1234.5678;
+    sf_realloc(ptr, 256);*/
+    sf_memalign(300, 512);
     sf_show_heap();
 
     sf_mem_fini();
