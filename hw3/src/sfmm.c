@@ -420,6 +420,7 @@ void *sf_memalign(size_t size, size_t align) {
                 //freeing old block
                 sf_free(start_address);
                 //splitting new_block, first round size to multiple of 64
+                size += 8; //adding for header
                 if(size % 64)
                     size = (size|63) + 1;
                 realloc_split(new_block, size);
