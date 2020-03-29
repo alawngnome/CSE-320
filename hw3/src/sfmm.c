@@ -311,22 +311,20 @@ void sf_free(void *pp) {
 */
 void realloc_split(struct sf_block *client_block, size_t rsize) {
     size_t temp_original_header = client_block->header;
-    //creating new block based off remainder
-    char *heap_pointer = ((char *)client_block) + ((client_block->header&~3) - rsize);
-    struct sf_block *new_block = (struct sf_block *) heap_pointer; //creates the new upper block
-    new_block->header = (client_block->header&~3)-rsize;
-    new_block->header |= 2; //prev alloc bit = 1, b/c client block allocated
     //creating new header for client_block
     client_block->header = rsize|1; //alloc bit set to 1
     client_block->header |= temp_original_header&2; //moving prv_alloc bit from old header
-    //setting footer of client block
+    //creating new block based off remainder
+    char *heap_pointer = ((char *)client_block) + rsize;
+    struct sf_block *new_block = (struct sf_block *) heap_pointer; //creates the new upper block
+    new_block->header = (temp_original_header&~3)-rsize;
+    new_block->header |= 3; //prev alloc bit = 1, alloc bit = 1, using hackerman trick
     new_block->prev_footer = client_block->header;
     //setting footer of new block
-    heap_pointer += new_block->header&~3; //going past the size of the new_block
+    heap_pointer = (char *)client_block + (temp_original_header&~3);
     struct sf_block *prev_footer_block = (struct sf_block *) heap_pointer;
     prev_footer_block->prev_footer = new_block->header;
     //use free to coalesce block for us
-    new_block->header |= 1; //set to be allocated, free will deallocate it anyway
     sf_free((char *)new_block + 16); //200 IQ play
 }
 
@@ -348,7 +346,7 @@ void *sf_realloc(void *pp, size_t rsize) {
         abort();
     //if pointer is valid but rsize is 0
     if(rsize == 0){
-        free(pp);
+        sf_free(pp);
         return NULL;
     }
     rsize += 8; //include header for blocksize
