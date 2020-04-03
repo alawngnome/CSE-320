@@ -141,7 +141,8 @@ struct sf_block *malloc_search_insert(int size){
 
     //loop through the free lists until we reach the wilderness block
     while(block_pointer != &sf_free_list_heads[NUM_FREE_LISTS-1]) {
-        if(block_pointer->body.links.next != block_pointer->body.links.prev) { //if we can traverse through the list
+        //if(block_pointer->body.links.next != block_pointer->body.links.prev) { //if we can traverse through the list
+        if(block_pointer->body.links.next != block_pointer || block_pointer->body.links.prev != block_pointer) {
             block_pointer = block_pointer->body.links.next; //start by moving off the sentinel node
             while(block_pointer != &sf_free_list_heads[start_position]){ //loop until we hit sentinel node again
                 if((block_pointer->header&~3) >= size) //if we find a suitably large block
@@ -165,25 +166,28 @@ struct sf_block *malloc_search_insert(int size){
     //last option is to call sf_mem_grow
     //saving the epilogue header to move to the new end
     char *temp_epilogue_address = (char *)sf_mem_end() - 16;
-    struct sf_block *temp_epilogue = (struct sf_block *) temp_epilogue_address;
-    size_t epilogue_header = temp_epilogue->header;
     while(1) { //try to coalesce block and satisfy request
         //check if sf_mem_grow fails
-        if(sf_mem_grow() == NULL)
+        if(sf_mem_grow() == NULL) {
+            temp_epilogue_address = (char *)sf_mem_end() - 16;
+            struct sf_block *new_epilouge = (sf_block *) temp_epilogue_address;
+            new_epilouge->header = 1; //size of 8 + alloc bit of 1. Initialize prv_alloc to be 0
+            new_epilouge->prev_footer = sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next->header;
             break; //break out of while loop
+        }
         //increase size of wilderness block by new page of memory generated
         sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next->header += PAGE_SZ;
         //try to grow another page of memory to add to the wilderness
-        if(sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next->header < size)
+        if((sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next->header&~3) < size)
             continue;
         //elsewise use the enbiggened wilderness block to satisfy the request
-        return malloc_split_block(size, sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next, 1);
+        struct sf_block *blockToReturn = malloc_split_block(size, sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next, 1);
         //inserting the epilouge at the end
         temp_epilogue_address = (char *)sf_mem_end() - 16;
         struct sf_block *new_epilouge = (sf_block *) temp_epilogue_address;
         new_epilouge->header = 1; //size of 8 + alloc bit of 1. Initialize prv_alloc to be 0
-        new_epilouge->prev_footer = epilogue_header;
-        //or is it sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next->header
+        new_epilouge->prev_footer = sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next->header;
+        return blockToReturn;
     }
     //if sf_mem_grow fails
     sf_errno = ENOMEM;
@@ -271,9 +275,10 @@ void free_coalesce(struct sf_block *current_block) {
         struct sf_block *new_next_block = (struct sf_block *) block_pointer;
         new_next_block->prev_footer = new_header;
         malloc_remove_block(prev_block);
+        malloc_remove_block(next_block);
         //if wilderness block
         if(next_block->body.links.next == &sf_free_list_heads[NUM_FREE_LISTS-1]){
-            malloc_remove_block(next_block);
+            //malloc_remove_block(next_block);
             sf_free_list_heads[NUM_FREE_LISTS-1].body.links.next = prev_block;
             sf_free_list_heads[NUM_FREE_LISTS-1].body.links.prev = prev_block;
             prev_block->body.links.next = &sf_free_list_heads[NUM_FREE_LISTS-1];
