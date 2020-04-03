@@ -401,6 +401,8 @@ void *sf_memalign(size_t size, size_t align) {
         return NULL;
     //append size
     char *start_address = (char *)sf_malloc(size + 64 + align); //adding header size, min size, align
+    if(start_address == NULL) //if could not allocate block
+        return NULL;
     //check if we can realloc to a slightly smaller size
     size_t blocksize_counter = 64; //satisifies minimum distance requirement
     struct sf_block *old_block = (struct sf_block *) (start_address - 16); //gets the block of the original

@@ -205,3 +205,53 @@ Test(sf_memsuite_student, realloc_smaller_block_free_block, .init = sf_mem_init,
 //DO NOT DELETE THESE COMMENTS
 //############################################
 
+Test(sf_memsuite_student, malloc_freed_block, .init = sf_mem_init, .fini = sf_mem_fini) {
+	sf_errno = 0;
+	double *x = sf_malloc(sizeof(double));
+	sf_free(x);
+	/* double *y = */ sf_malloc(sizeof(int));
+
+	assert_free_block_count(0, 1);
+	assert_free_block_count(64, 0);
+	assert_free_block_count(3904, 1);
+	cr_assert(sf_errno == 0, "sf_errno is not zero!");
+}
+
+Test(sf_memsuite_student, free_coalesce_all, .init = sf_mem_init, .fini = sf_mem_fini) {
+	sf_errno = 0;
+	void *prev = sf_malloc(1);
+	void *current = sf_malloc(2);
+	void *next = sf_malloc(3);
+	/* void *buffer = */ sf_malloc(4);
+
+	sf_free(prev);
+	sf_free(next);
+
+	sf_free(current);
+	assert_free_block_count(0, 2);
+	assert_free_block_count(192, 1);
+	assert_free_block_count(3712, 1);
+	cr_assert(sf_errno == 0, "sf_errno is not zero!");
+}
+
+Test(sf_memsuite_student, free_abort, .init = sf_mem_init, .fini = sf_mem_fini, .signal = SIGABRT) {
+	void *x = sf_malloc(1);
+	sf_free(x);
+	sf_free(x);
+}
+
+Test(sf_memsuite_student, realloc_empty_rsize, .init = sf_mem_init, .fini = sf_mem_fini) {
+	void *x = sf_malloc(1);
+	/*void *y = */ sf_realloc(x, 0);
+
+	cr_assert_not_null(x, "x is NULL!");
+	assert_free_block_count(0, 1);
+	assert_free_block_count(3968, 1);
+
+}
+
+Test(sf_memsuite_student, memalign_alignment, .init = sf_mem_init, .fini = sf_mem_fini) {
+	void *x = sf_memalign(300, 512);
+	cr_assert((size_t)x % 512 == 0, "sf_memalign not properly aligned");
+}
+
