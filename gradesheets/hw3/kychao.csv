@@ -1,0 +1,50 @@
+Graded Commit:cab0ce234b97c63b3f2d2c9d9e05a38947e7d75f
+
+TEST NAME, POINTS,OUT OF
+sf_memsuite_grading/free_block_too_small,1,1,
+sf_memsuite_grading/free_null,1,1,
+sf_memsuite_grading/free_prev_alloc,1,1,
+sf_memsuite_grading/free_unallocated,1,1,
+sf_memsuite_grading/initialization,1,1,
+sf_memsuite_grading/malloc_free_coalesce_both,1,1,
+sf_memsuite_grading/malloc_free_coalesce_lower,0,1,1 assertion(s) failed.: tests/__grading_helpers.c:99: Prev allocated bit is not correctly set for 0x5558467415f0. Should be: 0
+sf_memsuite_grading/malloc_free_coalesce_upper,1,1,
+sf_memsuite_grading/malloc_free_first_block,1,1,
+sf_memsuite_grading/malloc_free_last_block,1,1,
+sf_memsuite_grading/malloc_free_lifo,0,1,1 assertion(s) failed.: tests/__grading_helpers.c:99: Prev allocated bit is not correctly set for 0x5630521e0270. Should be: 1
+sf_memsuite_grading/malloc_free_no_coalesce,1,1,
+sf_memsuite_grading/malloc_to_exhaustion,0,1,
+sf_memsuite_grading/malloc_with_splinter,0,1,1 assertion(s) failed.: tests/__grading_helpers.c:99: Prev allocated bit is not correctly set for 0x55aa396db170. Should be: 1
+sf_memsuite_grading/realloc_larger,1,1,
+sf_memsuite_grading/realloc_same,1,1,
+sf_memsuite_grading/realloc_size_0,1,1,
+sf_memsuite_grading/realloc_smaller,1,1,
+sf_memsuite_grading/realloc_splinter,1,1,
+sf_memsuite_grading/sf_memalign_test_1,1,1,
+sf_memsuite_grading/sf_memalign_test_2,1,1,
+sf_memsuite_grading/sf_memalign_test_3,1,1,
+sf_memsuite_grading/single_malloc_1,1,1,
+sf_memsuite_grading/single_malloc_12000,1,1,
+sf_memsuite_grading/single_malloc_16,1,1,
+sf_memsuite_grading/single_malloc_32,1,1,
+sf_memsuite_grading/single_malloc_4,1,1,
+sf_memsuite_grading/single_malloc_4024,0,1,1 assertion(s) failed.: tests/__grading_helpers.c:99: Prev allocated bit is not correctly set for 0x55e9d56cc170. Should be: 1
+sf_memsuite_grading/single_malloc_4040,1,1,
+sf_memsuite_grading/single_malloc_8,1,1,
+sf_memsuite_grading/single_malloc_max,1,1,
+sf_memsuite_grading/stress_test,0,1,
+sf_memsuite_student/free_coalesce,1,1,
+sf_memsuite_student/free_no_coalesce,1,1,
+sf_memsuite_student/free_quick,1,1,
+sf_memsuite_student/freelist,1,1,
+sf_memsuite_student/malloc_an_int,1,1,
+sf_memsuite_student/malloc_three_pages,1,1,
+sf_memsuite_student/malloc_too_large,1,1,
+sf_memsuite_student/realloc_larger_block,1,1,
+sf_memsuite_student/realloc_smaller_block_free_block,1,1,
+sf_memsuite_student/realloc_smaller_block_splinter,1,1,
+total,36,42extra_test1,0.6,0.6
+extra_test2,0.6,0.6
+extra_test3,0.6,0.6
+extra_test4,0.6,0.6
+extra_test5,0.6,0.6
