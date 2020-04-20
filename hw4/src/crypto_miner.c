@@ -111,7 +111,7 @@ static struct problem *crypto_miner_construct_problem
 
 /*
  * Modify a given problem to create one of a number of variant forms.
- * A solution to any of the variants is considered as a solution to the given problem. 
+ * A solution to any of the variants is considered as a solution to the given problem.
  *
  * @param aprob  The problem to be modified.
  * @param var  Integer in the range [0, aprob->nvars) specifying the particular variant
