@@ -33,10 +33,9 @@ int worker(void) {
         //read problem
         struct problem *new_problem = malloc(sizeof(struct problem)); //allocate space for header
         fread(new_problem, sizeof(struct problem), 1, stdin); //read header into problem
-        debug("new_problem->size = %ld\n", new_problem->size);
         new_problem = realloc(new_problem, new_problem->size); //reallocing the correct size
         fread(new_problem->data, new_problem->size - sizeof(struct problem), 1, stdin); //reading the rest of the problem (size - header)
-        fflush(stdin);
+        //fflush(stdin);
         //solve problem & free problem malloc
         struct result *new_result = solvers[new_problem->type].solve(new_problem, &SIGHUP_cancel);
         free(new_problem);

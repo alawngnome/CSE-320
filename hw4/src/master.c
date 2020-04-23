@@ -10,7 +10,9 @@
 
 volatile sig_atomic_t *worker_states; //worker states
 volatile sig_atomic_t *pid_array; //array of worker IDs
-volatile sig_atomic_t *workers_global;
+volatile sig_atomic_t *workers_global; //global copy of workers
+
+volatile sig_atomic_t STOPPED_flag = 0; //flag if at least one worker found a SOLUTION
 
 void SIGCHLD_handler(int sig) {
     int worker_ID;
@@ -37,6 +39,7 @@ void SIGCHLD_handler(int sig) {
                 else if(worker_states[i] == WORKER_RUNNING && WIFSTOPPED(status)) {
                     sf_change_state(pid_array[i], worker_states[i], WORKER_STOPPED);
                     worker_states[i] = WORKER_STOPPED;
+                    STOPPED_flag = 1;
                 }
                 else if(worker_states[i] == WORKER_IDLE && WIFEXITED(status)) {
                     sf_change_state(pid_array[i], worker_states[i], WORKER_EXITED);
@@ -81,10 +84,10 @@ int master(int workers) {
         if((pid[i] = fork()) == 0) { //worker / child
             //problem pipe redirection
             close(problem_fd[2*i+1]); //close write side of problem pipe
-            dup2(problem_fd[2*i], 0); //redirecting stdin to pipe read
+            dup2(problem_fd[2*i], STDIN_FILENO); //redirecting stdin to pipe read
             //result pipe redirection
             close(result_fd[2*i]); //close read side of result pipe
-            dup2(result_fd[2*i+1], 1); //redirecting stdout to pipe write
+            dup2(result_fd[2*i+1], STDOUT_FILENO); //redirecting stdout to pipe write
             //execute worker
             execl("bin/polya_worker", "bin/polya_worker", NULL);
         } else { //master / parent
@@ -100,6 +103,7 @@ int master(int workers) {
     //MAIN LOOP - loops until no more problem to execute
     while(1) {
         int no_new_problem = 0; //flag if get_problem_variant returns null
+
         //find IDLE workers in list of workers & give it a job
         for(int i = 0; i < workers; i++) {
             if(worker_states[i] == WORKER_IDLE){ //if idle worker found
@@ -113,11 +117,9 @@ int master(int workers) {
                     break;
                 }
                 sf_send_problem(pid_array[i], new_problem); //called right before master writes problem
-                //pipe header of the problem
-                fwrite(new_problem, sizeof(struct problem), 1, fdopen(problem_fd[2*i+1], "w"));
-                //pipe rest of problem
-                fwrite(new_problem->data, new_problem->size - sizeof(struct problem), 1, fdopen(problem_fd[2*i+1], "w"));
-                fflush(fdopen(problem_fd[2*i], "w"));
+                //pipe problem into problem pipe
+                fwrite(new_problem, new_problem->size, 1, fdopen(problem_fd[2*i+1], "w"));
+                fflush(fdopen(problem_fd[2*i], "w")); //HOW DOES THIS WORK???
                 //set continued worker state
                 sf_change_state(pid_array[i], WORKER_IDLE, WORKER_CONTINUED);
                 worker_states[i] = WORKER_CONTINUED;
@@ -126,25 +128,35 @@ int master(int workers) {
             }
         }
 
+        //if solution found, send SIGHUP signal to all other workers
         //find STOPPED workers in list of workers & read result from pipe
-        for(int i = 0; i < workers; i++) {
-            if(worker_states[i] == WORKER_STOPPED) { //if pending result found
-                //set up result struct
-                struct result *new_result = malloc(sizeof(struct result));
-                //read problem
-                fread(new_result, sizeof(struct result), 1, fdopen(result_fd[2*i], "r"));
-                new_result = realloc(new_result, new_result->size);
-                fread(new_result->data, new_result->size - sizeof(struct result), 1, fdopen(result_fd[2*i], "r"));
-                fflush(fdopen(result_fd[2*i], "r"));
-                sf_recv_result(pid_array[i], new_result); //called after problem was read
-                if(post_result(new_result, problem_array[i])){
-                    debug("YAY SOLUTION FOUND\n");
+        if(STOPPED_flag) {
+            for(int i = 0; i < workers; i++) {
+                if(worker_states[i] == WORKER_STOPPED) { //if pending result found
+                    //set up result struct
+                    struct result *new_result = malloc(sizeof(struct result));
+                    //read problem
+                    FILE *read_FD = fdopen(result_fd[2*i], "r");
+                    fread(new_result, sizeof(struct result), 1, read_FD);
+                    new_result = realloc(new_result, new_result->size);
+                    //debug("Read the first part of result in...\n");
+                    fread(new_result->data, new_result->size - sizeof(struct result), 1, read_FD);
+                    //debug("...Read the second part of result in?\n");
+                    fflush(fdopen(result_fd[2*i], "r"));
+                    sf_recv_result(pid_array[i], new_result); //called after problem was read
+                    if(post_result(new_result, problem_array[i])){
+                        debug("YAY SOLUTION FOUND\n");
+                    }
+                    //solution posted, worker goes to IDLE
+                    sf_change_state(pid_array[i], WORKER_STOPPED, WORKER_IDLE);
+                    worker_states[i] = WORKER_IDLE;
                 }
-                //solution posted, worker goes to IDLE
-                sf_change_state(pid_array[i], WORKER_STOPPED, WORKER_IDLE);
-                worker_states[i] = WORKER_IDLE;
+                else if(worker_states[i] == WORKER_RUNNING) { //if other workers are running with a solution already found
+                    kill(pid_array[i], SIGHUP); //send a SIGHUP signal to cancel
+                }
             }
         }
+        STOPPED_flag = 0; //reset STOPPED flag
 
         //end workers and master
         if(no_new_problem){
