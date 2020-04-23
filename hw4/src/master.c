@@ -102,8 +102,6 @@ int master(int workers) {
 
     //MAIN LOOP - loops until no more problem to execute
     while(1) {
-        int no_new_problem = 0; //flag if get_problem_variant returns null
-
         //find IDLE workers in list of workers & give it a job
         for(int i = 0; i < workers; i++) {
             if(worker_states[i] == WORKER_IDLE){ //if idle worker found
@@ -113,8 +111,9 @@ int master(int workers) {
                 problem_array[i] = new_problem;
                 //if no more problem variants can be created
                 if(new_problem == NULL) {
-                    no_new_problem = 1;
-                    break;
+                    // no_new_problem = 1;
+                    // break;
+                    goto no_new_problem;
                 }
                 sf_send_problem(pid_array[i], new_problem); //called right before master writes problem
                 //pipe problem into problem pipe
@@ -153,36 +152,38 @@ int master(int workers) {
                 }
                 else if(worker_states[i] == WORKER_RUNNING) { //if other workers are running with a solution already found
                     kill(pid_array[i], SIGHUP); //send a SIGHUP signal to cancel
+                    // DO WAITPID AND SET
                 }
             }
         }
         STOPPED_flag = 0; //reset STOPPED flag
-
-        //end workers and master
-        if(no_new_problem){
-            int abnormal_termination = 0; //flag, 1 if abnormal termination
-            //if non-idle worker found
-            for(int i = 0; i < workers; i++) {
-                if(worker_states[i] != WORKER_IDLE){
-                    kill(pid_array[i], SIGHUP); //end solving if not already IDLE
-                }
-            }
-            //send SIGTERM signal to all workers
-            for(int i = 0; i < workers; i++) {
-                //send SIGTERM signal & exit
-                if(kill(pid_array[i], SIGTERM) == -1) { //if error
-                    abnormal_termination = 1; //abnormal termination found
-                }
-            }
-            //called as master is about to terminate
-            sf_end();
-            //if a worker exited with EXIT_FAILURE
-            if(abnormal_termination){
-                exit(EXIT_FAILURE);
-            }
-            //otherwise, return with EXIT_SUCCESS
-            exit(EXIT_SUCCESS);
-        }
     }
-    return EXIT_FAILURE;
+
+
+    //end workers and master
+    no_new_problem:
+        //if non-idle worker found
+        for(int i = 0; i < workers; i++) {
+            if(worker_states[i] != WORKER_IDLE){
+                kill(pid_array[i], SIGHUP); //end solving if not already IDLE
+            }
+        }
+        int abnormal_termination = 0; //flag, 1 if abnormal termination
+
+        //send SIGTERM signal to all workers
+        for(int i = 0; i < workers; i++) {
+            kill(pid_array[i], SIGCONT); //send a continue so worker can process it
+            //send SIGTERM signal & exit
+            if(kill(pid_array[i], SIGTERM) == -1) { //if error
+                abnormal_termination = 1; //abnormal termination found
+            }
+        }
+        //called as master is about to terminate
+        sf_end();
+        //if a worker exited with EXIT_FAILURE
+        if(abnormal_termination){
+            exit(EXIT_FAILURE);
+        }
+        //otherwise, return with EXIT_SUCCESS
+        exit(EXIT_SUCCESS);
 }
