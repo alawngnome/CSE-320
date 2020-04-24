@@ -170,11 +170,8 @@ int master(int workers) {
                         //find all problem variants in problem array and NULL them
                         problem_array[i] = NULL; // NULL solved problem variant
                         for(int i = 0; i < workers; i++){
-                            debug("temp_problem->id = %d", temp_problem->id);
                             if(problem_array[i] != NULL) {
-                                debug("problem_array[i]->id = %d", problem_array[i]->id);
                                 if(problem_array[i]->id == temp_problem->id) {
-                                    debug("set variant to null");
                                     problem_array[i] = NULL;
                                 }
                             }
