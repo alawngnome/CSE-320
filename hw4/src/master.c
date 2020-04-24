@@ -168,10 +168,16 @@ int master(int workers) {
                         temp_problem->id = problem_array[i]->id; //set temp ID for following workers to submit to
                         post_result(new_result, problem_array[i]);
                         //find all problem variants in problem array and NULL them
+                        problem_array[i] = NULL; // NULL solved problem variant
                         for(int i = 0; i < workers; i++){
-                            if(!(problem_array[i] == NULL) && //if already null pass over
-                            problem_array[i]->id == temp_problem->id)
-                                problem_array[i] = NULL;
+                            debug("temp_problem->id = %d", temp_problem->id);
+                            if(problem_array[i] != NULL) {
+                                debug("problem_array[i]->id = %d", problem_array[i]->id);
+                                if(problem_array[i]->id == temp_problem->id) {
+                                    debug("set variant to null");
+                                    problem_array[i] = NULL;
+                                }
+                            }
                         }
                     }
                     //if another successful result found but problem solved
