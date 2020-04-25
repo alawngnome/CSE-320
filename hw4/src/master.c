@@ -195,8 +195,8 @@ int master(int workers) {
                     kill(pid_array[i], SIGHUP); //send a SIGHUP signal to cancel
                 }
             }
+            STOPPED_flag = 0; //reset STOPPED flag
         }
-        STOPPED_flag = 0; //reset STOPPED flag
     }
 
     //end workers and master
