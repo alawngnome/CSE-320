@@ -12,8 +12,13 @@
 #include "pbx.h"
 #include "server.h"
 #include "debug.h"
+#include "csapp.h"
 
 static void terminate(int status);
+
+void SIGHUP_handler() {
+    terminate(EXIT_SUCCESS);
+}
 
 /*
  * "PBX" telephone exchange simulation.
@@ -24,6 +29,20 @@ int main(int argc, char* argv[]){
     // Option processing should be performed here.
     // Option '-p <port>' is required in order to specify the port number
     // on which the server should listen.
+    int option;
+    while((option = getopt(argc, argv, "p:")) != EOF) {
+        switch(option){
+            case 'p':
+                if(argc != 3) { //if not in format '-p <port>'
+                    debug("main.c: invalid arguments");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            default:
+                debug("main.c: invalid arguments");
+                exit(EXIT_FAILURE);
+        }
+    }
 
     // Perform required initialization of the PBX module.
     debug("Initializing PBX...");
@@ -35,9 +54,26 @@ int main(int argc, char* argv[]){
     // a SIGHUP handler, so that receipt of SIGHUP will perform a clean
     // shutdown of the server.
 
-    fprintf(stderr, "You have to finish implementing main() "
-	    "before the PBX server will function.\n");
+    //setting up SIGHUP handler
+    struct sigaction new_SIGHUP;
+    new_SIGHUP.sa_handler = SIGHUP_handler;
+    sigemptyset(&new_SIGHUP.sa_mask);
+    new_SIGHUP.sa_flags = 0;
+    sigaction(SIGHUP, &new_SIGHUP, NULL);
 
+    //setting up server socket & loop
+    int listenfd, *connfdp;
+    socklen_t clientlen;
+    struct sockaddr_storage clientaddr;
+    pthread_t tid;
+
+    listenfd = Open_listenfd(argv[2]);
+    while(1) {
+        clientlen = sizeof(struct sockaddr_storage);
+        connfdp = Malloc(sizeof(int));
+        *connfdp = Accept(listenfd,(SA *) &clientaddr, &clientlen);
+        Pthread_create(&tid, NULL, pbx_client_service, connfdp);
+    }
     terminate(EXIT_FAILURE);
 }
 
