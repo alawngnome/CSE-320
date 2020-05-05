@@ -33,6 +33,10 @@ void *pbx_client_service(void *arg) {
             debug("server received %d bytes", (int)n);
             break;
         }
+        if(n == 0) {
+            debug("deregistering");
+            pbx_unregister(pbx, new_TU);
+        }
         int message_length = strlen(message);
         //determine what message it is
         if(message[0] == 'p') {
@@ -51,17 +55,13 @@ void *pbx_client_service(void *arg) {
         else if(message[0] == 'd') {
             //dial #
             if(strstr(message, "dial ") != 0) {
-                char dial_char[message_length - 5];
-                memcpy(dial_char, &message[5], message_length - 5);
-                tu_dial(new_TU, atoi(dial_char));
+                tu_dial(new_TU, atoi(&message[5]));
             }
         }
         else if(message[0] == 'c') {
             //chat ...arbitrary text...
             if(strstr(message, "chat ") != NULL) {
-                char chat_char[message_length - 5];
-                memcpy(chat_char, &message[5], message_length - 5);
-                tu_chat(new_TU, chat_char);
+                tu_chat(new_TU, &message[5]);
             }
         } else { //if message does not match any of the above
             debug("server.c: message not understood");

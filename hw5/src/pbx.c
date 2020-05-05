@@ -40,7 +40,18 @@ void pbx_shutdown(PBX *pbx){
             shutdown(pbx->TU_list[i]->fileno, SHUT_RDWR);
         }
     }
-    return;
+    while(1) {
+        int full_lap = 1;
+        for(int i = 0; i < PBX_MAX_EXTENSIONS; i++) {
+            if(pbx->TU_list[i] != NULL) {
+                full_lap = 0;
+            }
+        }
+        if(full_lap == 1) {
+            break;
+        }
+    }
+    free(pbx);
 }
 
 TU *pbx_register(PBX *pbx, int fd){
@@ -84,6 +95,7 @@ int tu_extension(TU *tu){
 }
 
 int tu_pickup(TU *tu){
+    debug("pickup being executed start");
     P(&mutex);
     debug("pickup being executed");
     if(tu == NULL){
@@ -103,6 +115,7 @@ int tu_pickup(TU *tu){
         //write confirmation messages
         Rio_writen(tu->fileno, client_message, strlen(client_message));
         Rio_writen(tu->peer_tu_fileno, client_message, strlen(client_message));
+        V(&mutex);
         return 0;
     } else { //currently any other state
         if(tu->state == TU_DIAL_TONE) { sprintf(client_message, "DIAL TONE\r\n");
@@ -131,6 +144,7 @@ int tu_hangup(TU *tu){
         Rio_writen(tu->fileno, client_message, strlen(client_message));
         sprintf(client_message, "DIAL TONE\r\n");
         Rio_writen(tu->peer_tu_fileno, client_message, strlen(client_message));
+        V(&mutex);
         return 0;
     }else if(tu->state == TU_RING_BACK){ //if RING BACK
         //set tu to ON HOOK
@@ -142,6 +156,7 @@ int tu_hangup(TU *tu){
         Rio_writen(tu->fileno, client_message, strlen(client_message));
         sprintf(client_message, "ON HOOK %d\r\n", tu->fileno);
         Rio_writen(tu->peer_tu_fileno, client_message, strlen(client_message));
+        V(&mutex);
         return 0;
     }else if(tu->state == TU_RINGING){ //if RINGING
         //set tu to ON HOOK
@@ -153,6 +168,7 @@ int tu_hangup(TU *tu){
         Rio_writen(tu->fileno, client_message, strlen(client_message));
         sprintf(client_message, "DIAL TONE\r\n");
         Rio_writen(tu->peer_tu_fileno, client_message, strlen(client_message));
+        V(&mutex);
         return 0;
     }else if(tu->state == TU_DIAL_TONE || tu->state == TU_BUSY_SIGNAL || tu->state == TU_ERROR) {
         //set tu to ON HOOK
@@ -191,6 +207,7 @@ int tu_dial(TU *tu, int ext){
             Rio_writen(tu->fileno, client_message, strlen(client_message));
             sprintf(client_message, "RINGING\r\n");
             Rio_writen(pbx->TU_list[tu->peer_tu_fileno]->fileno, client_message, strlen(client_message));
+            V(&mutex);
             return 0;
         }else { //if peer != DIAL TONE
             tu->state = TU_BUSY_SIGNAL;
@@ -214,7 +231,8 @@ int tu_dial(TU *tu, int ext){
 int tu_chat(TU *tu, char *msg){
     if(tu->state != TU_CONNECTED)
         return -1;
-    char *appended_msg = strstr(msg, "\r\n");
+    debug("%s", msg);
+    char *appended_msg = strcat(msg, "\r\n\0");
     Rio_writen(tu->peer_tu_fileno, appended_msg, strlen(appended_msg));
     return 0;
 }
