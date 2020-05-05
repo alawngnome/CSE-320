@@ -36,6 +36,7 @@ void *pbx_client_service(void *arg) {
         if(n == 0) {
             debug("deregistering");
             pbx_unregister(pbx, new_TU);
+            return NULL;
         }
         int message_length = strlen(message);
         //determine what message it is
@@ -54,13 +55,13 @@ void *pbx_client_service(void *arg) {
         }
         else if(message[0] == 'd') {
             //dial #
-            if(strstr(message, "dial ") != 0) {
+            if(strstr(message, "dial") != 0) {
                 tu_dial(new_TU, atoi(&message[5]));
             }
         }
         else if(message[0] == 'c') {
             //chat ...arbitrary text...
-            if(strstr(message, "chat ") != NULL) {
+            if(strstr(message, "chat") != NULL) {
                 tu_chat(new_TU, &message[5]);
             }
         } else { //if message does not match any of the above
