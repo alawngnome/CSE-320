@@ -37,23 +37,32 @@ void *pbx_client_service(void *arg) {
         //determine what message it is
         if(message[0] == 'p') {
             //pickup
-            tu_pickup(new_TU);
+            if((strstr(message, "pickup") != NULL) && message_length == 8) {
+                debug("pickup called in server.c");
+                tu_pickup(new_TU);
+            }
         }
         else if(message[0] == 'h') {
             //hangup
-            tu_hangup(new_TU);
+            if((strstr(message, "hangup") != NULL) && message_length == 8) {
+                tu_hangup(new_TU);
+            }
         }
         else if(message[0] == 'd') {
             //dial #
-            ;char dial_char[message_length - 5];
-            memcpy(dial_char, &message[5], message_length - 5);
-            tu_dial(new_TU, atoi(dial_char));
+            if(strstr(message, "dial ") != 0) {
+                char dial_char[message_length - 5];
+                memcpy(dial_char, &message[5], message_length - 5);
+                tu_dial(new_TU, atoi(dial_char));
+            }
         }
         else if(message[0] == 'c') {
             //chat ...arbitrary text...
-            ;char chat_char[message_length - 5];
-            memcpy(chat_char, &message[5], message_length - 5);
-            tu_chat(new_TU, chat_char);
+            if(strstr(message, "chat ") != NULL) {
+                char chat_char[message_length - 5];
+                memcpy(chat_char, &message[5], message_length - 5);
+                tu_chat(new_TU, chat_char);
+            }
         } else { //if message does not match any of the above
             debug("server.c: message not understood");
             continue;
