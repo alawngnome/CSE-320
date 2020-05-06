@@ -29,6 +29,9 @@ struct pbx {
 
 PBX *pbx_init(){
     pbx = malloc(sizeof(struct pbx)); //initialize the global pbx object
+    for(int i = 0; i < PBX_MAX_EXTENSIONS; i++) {
+        pbx->TU_list[i] = NULL;
+    }
     Sem_init(&mutex, 0, 1); //intialize semaphore
     return pbx;
 }
@@ -66,21 +69,25 @@ TU *pbx_register(PBX *pbx, int fd){
     new_TU->state = TU_ON_HOOK;
     pbx->TU_list[fd] = new_TU; //putting it in the pbx list
     //writing ON HOOK # to client
-    char client_message[MAXLINE];
-    sprintf(client_message, "ON HOOK %d\r\n", new_TU->fileno);
-    Rio_writen(fd, client_message, strlen(client_message));
+    dprintf(fd, "ON HOOK %d\r\n", new_TU->fileno);
     //returning TU
     V(&mutex);
     return new_TU;
 }
 
 int pbx_unregister(PBX *pbx, TU *tu){
+    P(&mutex);
     //if already removed from TU_list
-    if(pbx->TU_list[tu->fileno] == NULL)
+    if(pbx->TU_list[tu->fileno] == NULL){
+        debug("unregister: error detected");
         return -1;
+    }
     pbx->TU_list[tu->fileno] = NULL; //remove from pbx's TU list
-    free(tu); //free
-    return 0; //if registration succeeds
+    //close(tu->fileno); why am i double closing
+    free(tu); //free TU
+    debug("unregister: tu successfully freed and unregister complete");
+    V(&mutex);
+    return 0; //if unregistration succeeds
 }
 
 int tu_fileno(TU *tu){
@@ -96,55 +103,50 @@ int tu_extension(TU *tu){
 }
 
 int tu_pickup(TU *tu){
-    debug("pickup being executed start");
     P(&mutex);
-    debug("pickup being executed");
     if(tu == NULL){
-        debug("tu ended up being null");
+        V(&mutex);
         return -1;
     }
-    char client_message[MAXLINE];
     if(tu->state == TU_ON_HOOK){ //currently ON HOOK
         tu->state = TU_DIAL_TONE;
-        sprintf(client_message, "DIAL TONE\r\n");
+        dprintf(tu->fileno, "DIAL TONE\r\n");
     }else if(tu->state == TU_RINGING) { //currently RINGING
         //set tu to CONNECTED
         tu->state = TU_CONNECTED;
-        sprintf(client_message, "CONNECTED %d\r\n", tu_extension(tu));
         //set peer tu to CONNECTED
         pbx->TU_list[tu->peer_tu_fileno]->state = TU_CONNECTED;
         //write confirmation messages
-        Rio_writen(tu->fileno, client_message, strlen(client_message));
-        Rio_writen(tu->peer_tu_fileno, client_message, strlen(client_message));
+        dprintf(tu->fileno, "CONNECTED %d\r\n", tu->peer_tu_fileno);
+        dprintf(tu->peer_tu_fileno, "CONNECTED %d\r\n", tu->fileno);
         V(&mutex);
         return 0;
     } else { //currently any other state
-        if(tu->state == TU_DIAL_TONE) { sprintf(client_message, "DIAL TONE\r\n");
-        } else if(tu->state == TU_RING_BACK) { sprintf(client_message, "RING BACK\r\n");
-        } else if(tu->state == TU_BUSY_SIGNAL){ sprintf(client_message, "BUSY SIGNAL\r\n");
-        } else if(tu->state == TU_CONNECTED) { sprintf(client_message, "CONNECTED %d\r\n", tu_extension(tu));
-        } else if(tu->state == TU_ERROR) { sprintf(client_message, "ERROR\r\n"); }
+        if(tu->state == TU_DIAL_TONE) { dprintf(tu->fileno, "DIAL TONE\r\n");
+        } else if(tu->state == TU_RING_BACK) { dprintf(tu->fileno, "RING BACK\r\n");
+        } else if(tu->state == TU_BUSY_SIGNAL){ dprintf(tu->fileno, "BUSY SIGNAL\r\n");
+        } else if(tu->state == TU_CONNECTED) { dprintf(tu->fileno, "CONNECTED %d\r\n", tu->peer_tu_fileno);
+        } else if(tu->state == TU_ERROR) { dprintf(tu->fileno, "ERROR\r\n"); }
     }
-    Rio_writen(tu->fileno, client_message, strlen(client_message));
     V(&mutex);
     return 0;
 }
 
 int tu_hangup(TU *tu){
     P(&mutex);
-    if(tu == NULL)
+    if(tu == NULL){
+        V(&mutex);
         return -1;
-    char client_message[MAXLINE];
+    }
+    debug("hangup: tu FD %d ->state initially is %d",tu->fileno, tu->state);
     if(tu->state == TU_CONNECTED){ //if CONNECTED
         //set tu to ON HOOK
         tu->state = TU_ON_HOOK;
         //set peer tu to DIAL TONE
         pbx->TU_list[tu->peer_tu_fileno]->state = TU_DIAL_TONE;
         //write confirmation messages
-        sprintf(client_message, "ON HOOK %d\r\n", tu->fileno);
-        Rio_writen(tu->fileno, client_message, strlen(client_message));
-        sprintf(client_message, "DIAL TONE\r\n");
-        Rio_writen(tu->peer_tu_fileno, client_message, strlen(client_message));
+        dprintf(tu->fileno, "ON HOOK %d\r\n", tu->fileno);
+        dprintf(tu->peer_tu_fileno, "DIAL TONE\r\n");
         V(&mutex);
         return 0;
     }else if(tu->state == TU_RING_BACK){ //if RING BACK
@@ -153,10 +155,8 @@ int tu_hangup(TU *tu){
         //set peer tu to ON HOOK
         pbx->TU_list[tu->peer_tu_fileno]->state = TU_ON_HOOK;
         //send confirmation messages
-        sprintf(client_message, "ON HOOK %d\r\n", tu->fileno);
-        Rio_writen(tu->fileno, client_message, strlen(client_message));
-        sprintf(client_message, "ON HOOK %d\r\n", tu->peer_tu_fileno);
-        Rio_writen(tu->peer_tu_fileno, client_message, strlen(client_message));
+        dprintf(tu->fileno, "ON HOOK %d\r\n", tu->fileno);
+        dprintf(tu->peer_tu_fileno, "ON HOOK %d\r\n", tu->peer_tu_fileno);;
         V(&mutex);
         return 0;
     }else if(tu->state == TU_RINGING){ //if RINGING
@@ -165,36 +165,35 @@ int tu_hangup(TU *tu){
         //set peer tu to DIAL TONE
         pbx->TU_list[tu->peer_tu_fileno]->state = TU_DIAL_TONE;
         //write confirmation messages
-        sprintf(client_message, "ON HOOK %d\r\n", tu->fileno);
-        Rio_writen(tu->fileno, client_message, strlen(client_message));
-        sprintf(client_message, "DIAL TONE\r\n");
-        Rio_writen(tu->peer_tu_fileno, client_message, strlen(client_message));
+        dprintf(tu->fileno, "ON HOOK %d\r\n", tu->fileno);
+        dprintf(tu->peer_tu_fileno, "DIAL TONE\r\n");
         V(&mutex);
         return 0;
     }else if(tu->state == TU_DIAL_TONE || tu->state == TU_BUSY_SIGNAL || tu->state == TU_ERROR) {
         //set tu to ON HOOK
         tu->state = TU_ON_HOOK;
-        sprintf(client_message, "ON HOOK %d\r\n", tu->fileno);
+        dprintf(tu->fileno, "ON HOOK %d\r\n", tu->fileno);
     }else if(tu->state == TU_ON_HOOK) { //if nothing else, keep current state
-        sprintf(client_message, "ON HOOK %d\r\n", tu->fileno);
+        dprintf(tu->fileno, "ON HOOK %d\r\n", tu->fileno);
     }
 
-    Rio_writen(tu->fileno, client_message, strlen(client_message));
     V(&mutex);
     return 0;
 }
 
 int tu_dial(TU *tu, int ext){
     P(&mutex);
-    if(tu == NULL || ext < 0)
+    if(tu == NULL || ext < 0) {
+        V(&mutex);
         return -1;
-    char client_message[MAXLINE];
+    }
     if(tu->state == TU_DIAL_TONE) { //if DIAL TONE
         //check that extension number is registered
         if(pbx->TU_list[ext] == NULL) {
-        //set state to be ERROR
-        tu->state = TU_ERROR;
-        sprintf(client_message, "ERROR\r\n");
+            //set state to be ERROR
+            debug("dial: error detected & state set");
+            tu->state = TU_ERROR;
+            dprintf(tu->fileno, "ERROR\r\n");
         }else if(pbx->TU_list[ext]->state == TU_ON_HOOK) { //if peer = ON HOOK
             tu->peer_tu_fileno = ext; //set peer fileno
             pbx->TU_list[ext]->peer_tu_fileno = tu_fileno(tu); //set peer's peer fileno
@@ -202,47 +201,50 @@ int tu_dial(TU *tu, int ext){
             tu->state = TU_RING_BACK;
             //set dialed tu(peer tu) to RINGING
             pbx->TU_list[ext]->state = TU_RINGING;
-            debug("pbx->TU_list[tu->peer_tu_fileno]->state = %d", pbx->TU_list[tu->peer_tu_fileno]->state);
             //write confirmation messages
-            sprintf(client_message, "RING BACK\r\n");
-            Rio_writen(tu->fileno, client_message, strlen(client_message));
-            sprintf(client_message, "RINGING\r\n");
-            Rio_writen(pbx->TU_list[tu->peer_tu_fileno]->fileno, client_message, strlen(client_message));
+            dprintf(tu->fileno, "RING BACK\r\n");
+            dprintf(pbx->TU_list[tu->peer_tu_fileno]->fileno, "RINGING\r\n");
             V(&mutex);
             return 0;
         }else { //if peer != DIAL TONE
             tu->state = TU_BUSY_SIGNAL;
-            sprintf(client_message, "BUSY SIGNAL\r\n");
+            dprintf(tu->fileno, "BUSY SIGNAL\r\n");
         }
     } else { //if not DIAL TONE
         //leave default state alone
-        if(tu->state == TU_ON_HOOK){ sprintf(client_message, "ON HOOK %d\r\n", tu->fileno);
-        }else if(tu->state == TU_RINGING) { sprintf(client_message, "RINGING\r\n");
-        }else if(tu->state == TU_RING_BACK) { sprintf(client_message, "RING BACK\r\n");
-        }else if(tu->state == TU_BUSY_SIGNAL) { sprintf(client_message, "BUSY SIGNAL\r\n");
-        }else if(tu->state == TU_CONNECTED) { sprintf(client_message, "CONNECTED %d\r\n", tu_extension(tu));
-        }else if(tu->state == TU_ERROR) { sprintf(client_message, "ERROR\r\n"); }
+        if(tu->state == TU_ON_HOOK){ dprintf(tu->fileno, "ON HOOK %d\r\n", tu->fileno);
+        }else if(tu->state == TU_RINGING) { dprintf(tu->fileno, "RINGING\r\n");
+        }else if(tu->state == TU_RING_BACK) { dprintf(tu->fileno, "RING BACK\r\n");
+        }else if(tu->state == TU_BUSY_SIGNAL) { dprintf(tu->fileno, "BUSY SIGNAL\r\n");
+        }else if(tu->state == TU_CONNECTED) { dprintf(tu->fileno, "CONNECTED %d\r\n", tu->peer_tu_fileno);
+        }else if(tu->state == TU_ERROR) { dprintf(tu->fileno, "ERROR\r\n"); }
     }
 
-    Rio_writen(tu->fileno, client_message, strlen(client_message));
     V(&mutex);
     return 0;
 }
 
 int tu_chat(TU *tu, char *msg){
     if(tu->state != TU_CONNECTED || msg == NULL) {
-        char client_message[MAXLINE];
-        if(tu->state == TU_ON_HOOK){ sprintf(client_message, "ON HOOK %d\r\n", tu->fileno);
-        }else if(tu->state == TU_RINGING) { sprintf(client_message, "RINGING\r\n");
-        }else if(tu->state == TU_DIAL_TONE) { sprintf(client_message, "DIAL TONE\r\n");
-        }else if(tu->state == TU_RING_BACK) { sprintf(client_message, "RING BACK\r\n");
-        }else if(tu->state == TU_BUSY_SIGNAL) { sprintf(client_message, "BUSY SIGNAL\r\n");
-        }else if(tu->state == TU_ERROR) { sprintf(client_message, "ERROR\r\n"); }
-        Rio_writen(tu->fileno, client_message, strlen(client_message));
+        if(tu->state == TU_ON_HOOK){ dprintf(tu->fileno, "ON HOOK %d\r\n", tu->fileno);
+        }else if(tu->state == TU_RINGING) { dprintf(tu->fileno, "RINGING\r\n");
+        }else if(tu->state == TU_DIAL_TONE) { dprintf(tu->fileno, "DIAL TONE\r\n");
+        }else if(tu->state == TU_RING_BACK) { dprintf(tu->fileno, "RING BACK\r\n");
+        }else if(tu->state == TU_BUSY_SIGNAL) { dprintf(tu->fileno, "BUSY SIGNAL\r\n");
+        }else if(tu->state == TU_ERROR) { dprintf(tu->fileno, "ERROR\r\n"); }
         return -1;
     }
-    debug("%s", msg);
+    //print message
     char *appended_msg = strcat(msg, "\r\n\0");
-    Rio_writen(tu->peer_tu_fileno, appended_msg, strlen(appended_msg));
+    dprintf(tu->peer_tu_fileno, "CHAT %s", appended_msg);
+    //print current state
+    if(tu->state == TU_ON_HOOK){ dprintf(tu->fileno, "ON HOOK %d\r\n", tu->fileno);
+    }else if(tu->state == TU_RINGING) { dprintf(tu->fileno, "RINGING\r\n");
+    }else if(tu->state == TU_DIAL_TONE) { dprintf(tu->fileno, "DIAL TONE\r\n");
+    }else if(tu->state == TU_RING_BACK) { dprintf(tu->fileno, "RING BACK\r\n");
+    }else if(tu->state == TU_BUSY_SIGNAL) { dprintf(tu->fileno, "BUSY SIGNAL\r\n");
+    }else if(tu->state == TU_CONNECTED) { dprintf(tu->fileno, "CONNECTED %d\r\n", tu->peer_tu_fileno);
+    }else if(tu->state == TU_ERROR) { dprintf(tu->fileno, "ERROR\r\n"); }
+
     return 0;
 }
