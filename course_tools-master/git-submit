@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+import requests
+from requests import get
+from requests.exceptions import ConnectTimeout, ConnectionError, HTTPError
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from datetime import datetime
+from signal import signal, SIGINT, SIGTSTP, SIG_IGN
+from subprocess import run, PIPE
+from shlex import split
+from argparse import ArgumentParser
+from sys import exit
+
+RED = '\033[1;31m'
+GRE = '\033[1;32m'
+YEL = '\033[0;33m'
+BLU = '\033[1;34m'
+PUR = '\033[1;35m'
+CYA = '\033[1;36m'
+BOLD = '\033[1m'
+DEF = '\033[0m'
+
+BASE_URL = 'https://cse320.starkeffect.com:3000/submit'
+server_timeout = None
+
+
+def yn_prompt():
+    prompt = input('{}Continue? Please enter Y/n{}: '.format(PUR, DEF))
+    while prompt != 'Y' and prompt.lower() != 'n':
+        prompt = input('{}Continue? Please enter Y/n{}: '.format(PUR, DEF))
+    if prompt != 'Y':
+        print('{}Aborting...{}'.format(YEL, DEF))
+        exit(1)
+
+
+def first_api_call():
+    global server_timeout
+    try:
+        res = get(BASE_URL + '/timeout', params=None, timeout=15, verify=False)
+        res_json = res.json()
+        server_timeout = res_json['timeout']
+    except (ConnectionError, ConnectTimeout, HTTPError):
+        print('Error connecting to the server. Try again. (FIRST_SERVER_CALL)')
+        exit(1)
+
+
+def initial_message():
+    print('Only commits made from master or merged into master will be ',
+          'considered. If you would like to submit a commit from a different ',
+          'branch, please merge the branch into master first.')
+    yn_prompt()
+
+
+def api_call(endpoint, query):
+    global server_timeout
+    try:
+        res = get(BASE_URL + endpoint, params=query, timeout=server_timeout,
+                verify=False)
+    except (ConnectionError, ConnectTimeout, HTTPError):
+        print('Error connecting to the server. Try again. ',
+              '(SERVER_CONNECTION_ERROR)')
+        exit(1)
+    res_json = res.json()
+    if 'errmsg' in res_json:
+        print(res_json['errmsg'])
+        exit(1)
+    return res_json
+
+
+def validate_git_directory():
+    cmd = split('git remote show origin')
+    proc = run(cmd, stdout=PIPE)
+    if proc.returncode:
+        exit(proc.returncode)
+    # You are not expected to understand this
+    return [line for line in proc.stdout.decode().split('\n') if
+            line.strip().startswith('Push')][0].split('/')[-1].split('.')[0]
+
+
+def validate_commit(commit):
+    # check current user branch
+    branch_cmd = split('git rev-parse --abbrev-ref HEAD')
+    branch_proc = run(branch_cmd, stdout=PIPE, stderr=PIPE)
+    if branch_proc.returncode:
+        print('{}Error{}: Uninitialized repository. Please initialize your repo.'.format(RED, DEF))
+        exit(branch_proc.returncode)
+    current_branch = [line for line in branch_proc.stdout.decode().split('\n')][0]
+    if not current_branch == 'master':
+        print('{}Error{}: Run git submit from the master branch'.format(RED, DEF))
+        exit(1)
+    # check branch commit was made from
+    if not commit == 'master':
+        if len(commit) < 8:
+            print('{}Error{}: Use at least the first 8 characters of the commit hash.'.format(RED, DEF))
+            exit(1)
+        commit_branch_cmd = split('git branch --contains {}'.format(commit))
+        commit_branch_proc = run(commit_branch_cmd, stdout=PIPE, stderr=PIPE)
+        if commit_branch_proc.returncode:
+            print('{}Error{}: The specified commit hash is invalid.'.format(RED, DEF))
+            exit(commit_branch_proc.returncode)
+        branches = [branch for branch in commit_branch_proc.stdout.decode().split('\n')]
+        on_master = False
+        for branch in branches:
+            branch_name = [word.strip() for word in branch.split('*')][-1]
+            if branch_name == 'master':
+                on_master = True
+        if not on_master:
+            print('{}Error{}: The submitted commit should be from master. Merge the branch with the commit into master.'.format(RED, DEF))
+            exit(1)
+    cmd = "bash -c 'git log --branches=master* --not --remotes --pretty=oneline'"
+    proc = run(cmd, stdout=PIPE, shell=True)
+    if proc.returncode:
+        print(proc.stdout)
+        exit(proc.returncode)
+    elif commit == 'master' and proc.stdout:
+        print('{}Error{}: Push your commits to the remote using: git push'.format(RED, DEF))
+        exit(1)
+    elif commit in proc.stdout.decode():
+        print('{}Error{}: Push your commits to the remote using: git push'.format(RED, DEF))
+        exit(1)
+
+
+def validate_tag(tag):
+    response = api_call('/verify/{}'.format(tag), None)
+    if 'err' in response:
+        print('{}Error{}: {}'.format(RED, DEF, response['err']))
+        exit(1)
+    if not response['valid']:
+        print('{}Error{}: {}'.format(RED, DEF, response['msg']))
+        exit(1)
+
+def check_for_resubmission(args):
+    status = api_call('/status', args)
+    print('{}Submission Time{}: {}'.format(BLU, DEF, status['time']))
+    if status['submitted']:
+        print('{}Resubmitting Homework{}: {} -- Are you {}sure{} you wish to resubmit '
+              '(this may result in lateday penalties)?'.format(YEL, DEF, CYA + args['tag'] + DEF, BOLD, DEF))
+    else:
+        print('{}Submitting Homework{}: {} -- Are you {}sure{}? '
+              .format(YEL, DEF, CYA + args['tag'] + DEF, BOLD, DEF))
+    yn_prompt()
+    return status['submitted'], status['time']
+
+
+def confirm_repo_state():
+    run(split('git -c color.status=always status'))
+    print('{}Current Repo State{}: Are you {}sure{} you have committed and pushed all the files needed '
+          '(such as .h files)?'.format(YEL, DEF, BOLD, DEF))
+    yn_prompt()
+
+
+def confirm_commit(commit):
+    cmd = split('git --no-pager -c color.ui=always show {} --pretty=fuller --quiet'.format(commit))
+    proc = run(cmd)
+    if proc.returncode:
+        exit(proc.returncode)
+    print('{}Submission Commit{}: Are you {}sure{} this is the commit you wish to submit?'.format(YEL, DEF, BOLD, DEF))
+    yn_prompt()
+
+
+def confirm_submission(tag):
+    print('{}Confirm Submission{}: Are you {}sure{} you want to submit {}? Your previous submission (if any) will be '
+          '{}overwritten{}!'.format(YEL, DEF, BOLD, DEF, CYA + tag + DEF, BOLD, DEF))
+    yn_prompt()
+
+
+def trigger_submission(args):
+    info = api_call('', args)
+    return info['late'], info['lateDays']
+
+
+def submission_info(**kwargs):
+    run(split('git pull --quiet'))
+    late = kwargs['late']
+    tag = kwargs['tag']
+    resubmit = kwargs['submit']
+    late_days = kwargs['days']
+    attempt_time = kwargs['time']
+    if late:
+        print('{}Urgent{}: {} was overdue. You did not have enough late days remaining.'.format(RED, DEF, tag))
+        print('{}Info{}: You have {} lateday(s) remaining.'.format(BLU, DEF, late_days))
+        if resubmit:
+            print('{}Alert{}: Your last submission will be taken into consideration.'.format(YEL, DEF))
+        else:
+            print('{}Urgent{}: You will be given an automatic zero for this assignment. Please meet your Professor\n'
+                  'after lecture or during office hours or please email us at cse320@cs.stonybrook.edu with\n'
+                  '{}[CSE320] - {} Overdue{} as the subject.'.format(RED, DEF, BLU, tag, DEF))
+    else:
+        print('{}Success{}: {} submission successful. Your assignment was submitted on {}.'
+              .format(GRE, DEF, tag, attempt_time))
+        print('{}Info{}: You have {} lateday(s) remaining.'.format(BLU, DEF, late_days))
+        print('Thank you for submitting your homework! We are working hard to get your grades out as soon as possible.')
+        print('If you have any concerns please email us at cse320@cs.stonybrook.edu with {}[{}]{} in the subject.'
+              .format(BLU, tag, DEF))
+    print('{}The CSE 320 Team{}'.format(PUR, DEF))
+
+
+def main(arg_parser):
+    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+    first_api_call()
+    initial_message()
+    net_id = validate_git_directory()
+    args = arg_parser.parse_args()
+    attempt_time = datetime.now()
+    validate_tag(args.TAG)
+    validate_commit(args.commit)
+    resubmit, time = check_for_resubmission({'tag': args.TAG, 'repo': net_id, 'attemptTime': attempt_time.isoformat()})
+    confirm_repo_state()
+    confirm_commit(args.commit)
+    confirm_submission(args.TAG)
+    signal(SIGINT, SIG_IGN)
+    signal(SIGTSTP, SIG_IGN)
+    late, late_days = trigger_submission({'tag': args.TAG, 'repo': net_id, 'commit': args.commit})
+    submission_info(tag=args.TAG, time=time, submit=resubmit, late=late, days=late_days)
+    exit(0)
+
+
+class GitArgParser(ArgumentParser):
+    def error(self, message):
+        print('{}Error{}: {}'.format(RED, DEF, message))
+        self.print_help()
+        exit(2)
+
+
+if __name__ == '__main__':
+    parser = GitArgParser(prog='git submit', description='Submit your homework assignment using git.')
+    parser.add_argument('TAG', type=str, help='The homework you wish to submit. Can have one of the following values: '
+                                              'hw0, hw1, hw2, hw3, hw4, hw5')
+    parser.add_argument('-c', dest='commit', type=str, required=False, default='master',
+                        help='Used if you wish to submit a commit that is not the latest. COMMIT is the SHA value of '
+                             'your commit.')
+    main(parser)

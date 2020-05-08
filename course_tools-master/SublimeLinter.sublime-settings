@@ -1,0 +1,15 @@
+// SublimeLinter Settings - User
+{
+    "delay":0.25,
+    "linters":{
+        "gcc":{
+            "disable":false,
+            "c_executable":"gcc",
+            "args":["-Wall"],
+            "I":[
+                "${file_path}/../include",
+                "${project_path}/include"
+            ]
+        }
+    }
+}
